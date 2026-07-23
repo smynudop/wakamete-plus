@@ -1,0 +1,255 @@
+:root {
+  color: #1d232a;
+  background: #f4f0e8;
+  font-family:
+    Inter, "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #285c63;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #b9b0a2;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fffdfa;
+  color: #1d232a;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.top-bar,
+.layout,
+.join-panel,
+.end-panel {
+  width: min(1120px, 100%);
+  margin: 0 auto 16px;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #2d3f4a;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(28px, 5vw, 48px);
+}
+
+h2 {
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.top-bar p {
+  color: #5f6870;
+}
+
+.phase {
+  display: grid;
+  place-items: end;
+  min-width: 120px;
+}
+
+.phase span {
+  color: #5f6870;
+}
+
+.phase strong {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.error {
+  width: min(1120px, 100%);
+  margin: 0 auto 16px;
+  border-left: 4px solid #a73d3d;
+  padding: 10px 12px;
+  background: #fff2f0;
+  color: #812929;
+}
+
+.join-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.join-panel label {
+  display: grid;
+  gap: 6px;
+  color: #5f6870;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+}
+
+.side-panel,
+.main-panel,
+.end-panel {
+  border: 1px solid #d0c8ba;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.side-panel,
+.main-panel {
+  min-height: 560px;
+  padding: 16px;
+}
+
+.status-row,
+.action-line,
+.chat-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-box {
+  display: grid;
+  gap: 4px;
+  margin: 16px 0;
+  border: 1px solid #c9d5d1;
+  border-radius: 8px;
+  padding: 12px;
+  background: #edf7f4;
+}
+
+.role-box span,
+.players small {
+  color: #5f6870;
+}
+
+.role-box strong {
+  font-size: 24px;
+}
+
+.players {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.players li {
+  display: grid;
+  gap: 2px;
+  border-bottom: 1px solid #ede6db;
+  padding: 8px 0;
+}
+
+.players li.dead {
+  opacity: 0.55;
+}
+
+.actions,
+.results {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.chat {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 430px;
+  gap: 12px;
+}
+
+.messages {
+  overflow: auto;
+  border: 1px solid #e0d8ca;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8f5ee;
+}
+
+.messages p {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.messages p.werewolf {
+  color: #8b2430;
+}
+
+.end-panel {
+  padding: 16px;
+}
+
+.end-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 16px;
+  }
+
+  .top-bar,
+  .layout,
+  .join-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .layout {
+    display: grid;
+  }
+
+  .side-panel,
+  .main-panel {
+    min-height: auto;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@wakamete-plus/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vue-tsc -b && vite build",
+    "dev": "vite --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "^5.1.2",
+    "@wakamete-plus/shared": "workspace:*",
+    "socket.io-client": "^4.7.5",
+    "vite": "^5.4.0",
+    "vue": "^3.4.35"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vue-tsc": "^2.0.29"
+  }
+}
