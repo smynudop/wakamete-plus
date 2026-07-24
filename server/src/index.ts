@@ -28,6 +28,7 @@ io.on("connection", (socket) => {
   emitToSocket(socket.id);
 
   socket.on("joinGame", (payload) => handle(socket.id, () => room.join(socket.id, payload.name)));
+  socket.on("addBot", () => handle(socket.id, () => room.addBot()));
   socket.on("startGame", () => handle(socket.id, () => room.start(socket.id)));
   socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text)));
   socket.on("vote", (payload) => handle(socket.id, () => room.vote(socket.id, payload.targetId)));
@@ -40,9 +41,17 @@ io.on("connection", (socket) => {
 
 function handle(socketId: string, action: () => GameEventBundle): void {
   try {
-    broadcast(action());
+    broadcastWithBots(action());
   } catch (error) {
     io.to(socketId).emit("actionError", { message: error instanceof Error ? error.message : "操作に失敗しました。" });
+  }
+}
+
+function broadcastWithBots(bundle: GameEventBundle): void {
+  broadcast(bundle);
+  const botBundle = room.runBotActions();
+  if (botBundle.chats.length > 0 || botBundle.phaseChanged || botBundle.ended) {
+    broadcast(botBundle);
   }
 }
 
@@ -86,7 +95,7 @@ function scheduleTimer(): void {
     return;
   }
   timer = setTimeout(() => {
-    broadcast(room.advanceTimer());
+    broadcastWithBots(room.advanceTimer());
   }, delay);
 }
 

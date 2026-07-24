@@ -45,6 +45,59 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 }
 
 describe("GameRoom", () => {
+  it("adds development bots as playable participants", () => {
+    const room = new GameRoom();
+    room.join("s1", "player1");
+    for (let index = 0; index < 4; index += 1) {
+      room.addBot();
+    }
+
+    const bots = room.getState().players.filter((player) => player.bot);
+    expect(bots).toHaveLength(4);
+    expect(room.getState().canStart).toBe(true);
+    expect(() => room.addBot()).toThrow("参加枠は5人までです。");
+  });
+
+  it("makes bots act during each applicable phase", () => {
+    const room = new GameRoom();
+    room.join("s1", "player1");
+    for (let index = 0; index < 4; index += 1) {
+      room.addBot();
+    }
+    room.start("s1");
+
+    const nightActions = room.runBotActions();
+    const botSeer = room.getDebugPlayersForTests().find(
+      (player) => player.role === "seer" && player.name.startsWith("開発Bot")
+    );
+    const botWerewolf = room.getDebugPlayersForTests().find(
+      (player) => player.role === "werewolf" && player.name.startsWith("開発Bot")
+    );
+    if (botSeer) {
+      const seerState = [...nightActions.privateStates.values()].find((state) => state.playerId === botSeer.id);
+      expect(seerState?.divineResults).toHaveLength(1);
+    }
+
+    room.advanceTimer();
+    const attackActions = room.runBotActions();
+    if (botWerewolf) {
+      const firstVictim = room.getState().players.find((player) => player.name === FIRST_VICTIM_NAME);
+      expect(firstVictim?.alive).toBe(false);
+    }
+    if (room.getState().phase === "nightAttack") {
+      room.advanceTimer();
+    }
+    expect(room.getState().phase).toBe("dayDiscussion");
+
+    const dayActions = attackActions.chats.length > 0 ? attackActions : room.runBotActions();
+    expect(dayActions.chats).toHaveLength(4);
+    expect(dayActions.chats.every((message) => message.text === "おはようございます。")).toBe(true);
+
+    room.advanceTimer();
+    room.runBotActions();
+    expect(room.getState().votes).toHaveLength(4);
+  });
+
   it("exposes fixed room settings on the public state", () => {
     const room = new GameRoom();
 

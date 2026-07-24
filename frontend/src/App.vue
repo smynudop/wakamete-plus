@@ -79,12 +79,12 @@ const state = ref<PublicGameState>({
   phase: "waiting",
   day: 0,
   players: [
-    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true },
-    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true },
-    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true },
-    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true },
-    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true },
-    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true },
+    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true, bot: false },
+    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true, bot: false },
+    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true, bot: false },
+    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true, bot: false },
+    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true, bot: false },
+    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true, bot: false },
   ],
   timer: null,
   canStart: false,
@@ -164,6 +164,11 @@ function joinGame() {
 function startGame() {
   error.value = "";
   socket.emit("startGame");
+}
+
+function addBot() {
+  error.value = "";
+  socket.emit("addBot");
 }
 
 function sendChat() {
@@ -350,5 +355,11 @@ const debugState = ref({
   </main>
   <div class="dev-panel">
     <input type="checkbox" v-model="debugState.join"><label>参加状態</label>
+    <button
+      :disabled="state.phase !== 'waiting' || state.players.length >= state.room.playerLimit - 1"
+      @click="addBot"
+    >
+      Botを追加
+    </button>
   </div>
 </template>

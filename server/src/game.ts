@@ -73,6 +73,7 @@ interface Player {
   password: string;
   alive: boolean;
   npc: boolean;
+  bot: boolean;
   connected: boolean;
   role: Role | null;
   divineResults: DivineResult[];
@@ -117,6 +118,8 @@ export class GameRoom {
   private attackTargetId: string | null = null;
   private chatSeq = 0;
   private playerSeq = 0;
+  private botSeq = 0;
+  private botActions = new Set<string>();
   private log: string[] = [];
   private winner: Team | null = null;
   private readonly settings: RoomSettings;
@@ -152,6 +155,7 @@ export class GameRoom {
       password,
       alive: true,
       npc: false,
+      bot: false,
       connected: true,
       role: null,
       divineResults: []
@@ -159,6 +163,35 @@ export class GameRoom {
     this.players.set(player.id, player);
     this.socketToPlayer.set(socketId, player.id);
     this.log.push(`${name} が参加しました。`);
+    return this.bundle(false, null);
+  }
+
+  addBot(): GameEventBundle {
+    if (this.phase !== "waiting") {
+      throw new Error("ゲーム開始後はBotを追加できません。");
+    }
+    if (this.humanPlayers().length >= this.humanLimit()) {
+      throw new Error(`参加枠は${this.humanLimit()}人までです。`);
+    }
+
+    const botNumber = ++this.botSeq;
+    const socketId = `bot-${botNumber}`;
+    const player: Player = {
+      id: `p${++this.playerSeq}`,
+      name: `開発Bot${botNumber}`,
+      handleName: "development-bot",
+      color: PLAYER_COLORS[(botNumber - 1) % PLAYER_COLORS.length] ?? DEFAULT_PLAYER_COLOR,
+      password: "",
+      alive: true,
+      npc: false,
+      bot: true,
+      connected: true,
+      role: null,
+      divineResults: []
+    };
+    this.players.set(player.id, player);
+    this.socketToPlayer.set(socketId, player.id);
+    this.log.push(`${player.name} が参加しました。`);
     return this.bundle(false, null);
   }
 
@@ -279,6 +312,52 @@ export class GameRoom {
   advanceTimer(): GameEventBundle {
     const result = this.resolveCurrentPhase();
     return this.bundle(result.phaseChanged, result.gameEnded);
+  }
+
+  runBotActions(): GameEventBundle {
+    const chats: ChatMessage[] = [];
+    let phaseChanged = false;
+    let ended: GameEndPayload | null = null;
+
+    for (let guard = 0; guard < 100 && this.phase !== "waiting" && this.phase !== "ended"; guard += 1) {
+      const bot = this.livingPlayers().find((player) => player.bot && !this.botActions.has(this.botActionKey(player)));
+      if (!bot) {
+        break;
+      }
+
+      this.botActions.add(this.botActionKey(bot));
+      const socketId = this.socketIdForPlayer(bot.id);
+      let result: GameEventBundle | null = null;
+
+      if (this.phase === "dayDiscussion") {
+        result = this.sendChat(socketId, "おはようございます。");
+      } else if (this.phase === "dayVote") {
+        const targets = this.livingPlayers().filter((player) => !player.npc && player.id !== bot.id);
+        if (targets.length > 0) {
+          result = this.vote(socketId, this.pick(targets).id);
+        }
+      } else if (this.phase === "nightDiscussion" && bot.role === "seer") {
+        const targets = this.livingPlayers().filter((player) => player.id !== bot.id);
+        if (targets.length > 0) {
+          result = this.divine(socketId, this.pick(targets).id);
+        }
+      } else if (this.phase === "nightAttack" && bot.role === "werewolf") {
+        const targets = this.day === 1
+          ? this.livingPlayers().filter((player) => player.name === FIRST_VICTIM_NAME)
+          : this.livingPlayers().filter((player) => player.role !== "werewolf" && !player.npc);
+        if (targets.length > 0) {
+          result = this.attack(socketId, this.pick(targets).id);
+        }
+      }
+
+      if (result) {
+        chats.push(...result.chats);
+        phaseChanged ||= result.phaseChanged;
+        ended = result.ended ?? ended;
+      }
+    }
+
+    return { ...this.bundle(phaseChanged, ended), chats };
   }
 
   getState(): PublicGameState {
@@ -448,6 +527,7 @@ export class GameRoom {
       password: "",
       alive: true,
       npc: true,
+      bot: false,
       connected: false,
       role: null,
       divineResults: []
@@ -556,6 +636,7 @@ export class GameRoom {
       color: player.color,
       alive: player.alive,
       npc: player.npc,
+      bot: player.bot,
       connected: player.connected,
       role: this.phase === "ended" ? this.requireRole(player) : undefined
     };
@@ -563,6 +644,18 @@ export class GameRoom {
 
   private playerName(playerId: string): string {
     return this.players.get(playerId)?.name ?? playerId;
+  }
+
+  private socketIdForPlayer(playerId: string): string {
+    const entry = [...this.socketToPlayer.entries()].find(([, mappedPlayerId]) => mappedPlayerId === playerId);
+    if (!entry) {
+      throw new Error("Botの接続情報が見つかりません。");
+    }
+    return entry[0];
+  }
+
+  private botActionKey(player: Player): string {
+    return `${this.day}:${this.phase}:${player.id}`;
   }
 
   private shuffle<T>(items: T[]): T[] {

@@ -48,6 +48,7 @@ export interface PublicPlayer {
   color: string;
   alive: boolean;
   npc: boolean;
+  bot: boolean;
   connected: boolean;
   role?: Role;
 }
@@ -107,6 +108,7 @@ export interface GameEndPayload {
 
 export interface ClientToServerEvents {
   joinGame: (payload: JoinGamePayload) => void;
+  addBot: () => void;
   startGame: () => void;
   sendChat: (payload: { text: string }) => void;
   vote: (payload: { targetId: string }) => void;
