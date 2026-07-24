@@ -45,6 +45,48 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 }
 
 describe("GameRoom", () => {
+  it("restores the same player and private state with a session token after the game starts", () => {
+    const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => "session-player1");
+    const joined = room.join("s1", { name: "player1", password: "return-secret" });
+    for (let index = 0; index < 4; index += 1) {
+      room.addBot();
+    }
+    const started = room.start("s1");
+    const originalPrivateState = started.privateStates.get("s1");
+    const sessionToken = joined.privateStates.get("s1")?.sessionToken;
+    expect(sessionToken).toBe("session-player1");
+
+    room.disconnect("s1");
+    expect(room.getState().players.find((player) => player.id === originalPrivateState?.playerId)?.connected).toBe(false);
+
+    const restored = room.join("s6", { name: "", sessionToken: sessionToken! });
+
+    expect(restored.privateStates.get("s6")).toEqual(originalPrivateState);
+    expect(restored.state.players.find((player) => player.id === originalPrivateState?.playerId)?.connected).toBe(true);
+    expect(room.getPrivateState("s1").playerId).toBeNull();
+  });
+
+  it("allows password recovery for a disconnected player and rejects a wrong password", () => {
+    const tokens = ["session-player1", "session-player1-recovered"];
+    const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => tokens.shift() ?? "unexpected-token");
+    const joined = room.join("s1", { name: "player1", password: "return-secret" });
+    const playerId = joined.privateStates.get("s1")?.playerId;
+    room.disconnect("s1");
+
+    expect(() => room.join("s2", { name: "player1", password: "wrong-secret" })).toThrow(
+      "復帰用パスワードが一致しません。"
+    );
+
+    const restored = room.join("s2", { name: "player1", password: "return-secret" });
+    expect(restored.privateStates.get("s2")?.playerId).toBe(playerId);
+    expect(restored.privateStates.get("s2")?.sessionToken).toBe("session-player1-recovered");
+
+    room.disconnect("s2");
+    expect(() => room.join("s3", { name: "player1", sessionToken: "session-player1" })).toThrow(
+      "復帰用パスワードが一致しません。"
+    );
+  });
+
   it("adds development bots as playable participants", () => {
     const room = new GameRoom();
     room.join("s1", "player1");
@@ -118,6 +160,8 @@ describe("GameRoom", () => {
     expect(player?.color).toBe("#2f80c7");
     expect(player && "handleName" in player).toBe(false);
     expect(player && "password" in player).toBe(false);
+    expect(player && "sessionToken" in player).toBe(false);
+    expect(bundle.privateStates.get("s1")?.sessionToken).toBeTruthy();
   });
 
   it("assigns the fixed roles and keeps the first victim from being a werewolf", () => {

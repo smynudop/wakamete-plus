@@ -27,7 +27,7 @@ app.get("*", (_request, response) => {
 io.on("connection", (socket) => {
   emitToSocket(socket.id);
 
-  socket.on("joinGame", (payload) => handle(socket.id, () => room.join(socket.id, payload.name)));
+  socket.on("joinGame", (payload) => handle(socket.id, () => room.join(socket.id, payload)));
   socket.on("addBot", () => handle(socket.id, () => room.addBot()));
   socket.on("startGame", () => handle(socket.id, () => room.start(socket.id)));
   socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text)));
@@ -71,8 +71,8 @@ function broadcast(bundle: GameEventBundle): void {
       io.emit("chatMessage", message);
     }
   }
-  for (const [socketId, privateState] of bundle.privateStates) {
-    io.to(socketId).emit("privateState", privateState);
+  for (const socketId of io.sockets.sockets.keys()) {
+    io.to(socketId).emit("privateState", room.getPrivateState(socketId));
   }
   if (bundle.ended) {
     io.emit("gameEnded", bundle.ended);

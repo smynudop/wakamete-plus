@@ -17,6 +17,7 @@ import {
   type Team,
   type VoteSummary
 } from "@wakamete-plus/shared";
+import { randomUUID } from "node:crypto";
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   roomName: "【モバマス】ほげほげふがふが村",
@@ -59,6 +60,7 @@ interface PlayerJoinOptions {
   handleName?: string;
   color?: string;
   password?: string;
+  sessionToken?: string;
 }
 
 const DEFAULT_JOIN_OPTIONS: PlayerJoinOptions = {
@@ -75,6 +77,7 @@ interface Player {
   npc: boolean;
   bot: boolean;
   connected: boolean;
+  sessionToken: string | null;
   role: Role | null;
   divineResults: DivineResult[];
 }
@@ -124,7 +127,11 @@ export class GameRoom {
   private winner: Team | null = null;
   private readonly settings: RoomSettings;
 
-  constructor(private readonly now: () => number = () => Date.now(), settings: RoomSettings = DEFAULT_ROOM_SETTINGS) {
+  constructor(
+    private readonly now: () => number = () => Date.now(),
+    settings: RoomSettings = DEFAULT_ROOM_SETTINGS,
+    private readonly createSessionToken: () => string = randomUUID
+  ) {
     this.settings = normalizeRoomSettings(settings);
   }
 
@@ -134,17 +141,39 @@ export class GameRoom {
     const handleName = (options.handleName?.trim() || name).slice(0, 24);
     const color = PLAYER_COLORS.includes(options.color as (typeof PLAYER_COLORS)[number]) ? options.color! : DEFAULT_PLAYER_COLOR;
     const password = options.password?.trim() ?? "";
+    const sessionToken = options.sessionToken?.trim() ?? "";
+    const currentPlayer = this.getSocketPlayer(socketId);
+    const sessionPlayer = sessionToken
+      ? this.humanPlayers().find((player) => !player.bot && player.sessionToken === sessionToken)
+      : undefined;
+    if (sessionPlayer) {
+      if (currentPlayer && currentPlayer.id !== sessionPlayer.id) {
+        throw new Error("この接続は別のプレイヤーとして参加済みです。");
+      }
+      return this.reconnect(socketId, sessionPlayer);
+    }
     if (!name) {
       throw new Error("名前を入力してください。");
+    }
+    if (currentPlayer) {
+      throw new Error("この接続は参加済みです。");
+    }
+
+    const existingPlayer = this.humanPlayers().find((player) => !player.bot && player.name === name);
+    if (existingPlayer) {
+      if (!existingPlayer.connected && existingPlayer.password && password === existingPlayer.password) {
+        return this.reconnect(socketId, existingPlayer, true);
+      }
+      if (!existingPlayer.connected) {
+        throw new Error("復帰用パスワードが一致しません。");
+      }
+      throw new Error("同じ名前のプレイヤーがいます。");
     }
     if (this.phase !== "waiting") {
       throw new Error("ゲーム開始後は参加できません。");
     }
     if (this.humanPlayers().length >= this.humanLimit()) {
       throw new Error(`参加枠は${this.humanLimit()}人までです。`);
-    }
-    if (this.humanPlayers().some((player) => player.name === name)) {
-      throw new Error("同じ名前のプレイヤーがいます。");
     }
 
     const player: Player = {
@@ -157,6 +186,7 @@ export class GameRoom {
       npc: false,
       bot: false,
       connected: true,
+      sessionToken: this.createSessionToken(),
       role: null,
       divineResults: []
     };
@@ -186,6 +216,7 @@ export class GameRoom {
       npc: false,
       bot: true,
       connected: true,
+      sessionToken: null,
       role: null,
       divineResults: []
     };
@@ -378,7 +409,8 @@ export class GameRoom {
     return {
       playerId: player?.id ?? null,
       role: player?.role ?? null,
-      divineResults: player?.divineResults ?? []
+      divineResults: player?.divineResults ?? [],
+      sessionToken: player?.sessionToken ?? null
     };
   }
 
@@ -529,6 +561,7 @@ export class GameRoom {
       npc: true,
       bot: false,
       connected: false,
+      sessionToken: null,
       role: null,
       divineResults: []
     };
@@ -588,6 +621,21 @@ export class GameRoom {
   private getSocketPlayer(socketId: string): Player | undefined {
     const playerId = this.socketToPlayer.get(socketId);
     return playerId ? this.players.get(playerId) : undefined;
+  }
+
+  private reconnect(socketId: string, player: Player, rotateSessionToken = false): GameEventBundle {
+    for (const [mappedSocketId, playerId] of this.socketToPlayer) {
+      if (playerId === player.id) {
+        this.socketToPlayer.delete(mappedSocketId);
+      }
+    }
+    if (rotateSessionToken) {
+      player.sessionToken = this.createSessionToken();
+    }
+    this.socketToPlayer.set(socketId, player.id);
+    player.connected = true;
+    this.log.push(`${player.name} が復帰しました。`);
+    return this.bundle(false, null);
   }
 
   private requireSocketPlayer(socketId: string): Player {

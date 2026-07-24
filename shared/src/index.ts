@@ -40,6 +40,7 @@ export interface JoinGamePayload {
   handleName?: string;
   color?: string;
   password?: string;
+  sessionToken?: string;
 }
 
 export interface PublicPlayer {
@@ -85,6 +86,7 @@ export interface PrivateState {
   playerId: string | null;
   role: Role | null;
   divineResults: DivineResult[];
+  sessionToken: string | null;
 }
 
 export interface ChatMessage {

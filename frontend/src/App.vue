@@ -30,11 +30,12 @@ const phaseLabels: Record<PublicGameState["phase"], string> = {
   ended: "終了"
 };
 
-const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
+const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({ autoConnect: false });
 const name = ref(localStorage.getItem("wakamete:name") ?? "");
 const handleName = ref(localStorage.getItem("wakamete:handleName") ?? "");
 const color = ref(localStorage.getItem("wakamete:color") ?? DEFAULT_PLAYER_COLOR);
 const password = ref("");
+const sessionToken = ref(localStorage.getItem("wakamete:sessionToken") ?? "");
 const chatText = ref("");
 const selectedVote = ref("");
 const selectedDivine = ref("");
@@ -94,7 +95,8 @@ const state = ref<PublicGameState>({
 const privateState = ref<PrivateState>({
   playerId: null,
   role: null,
-  divineResults: []
+  divineResults: [],
+  sessionToken: null
 });
 
 const ticker = window.setInterval(() => {
@@ -106,6 +108,11 @@ socket.on("gameState", (nextState) => {
 });
 socket.on("privateState", (nextState) => {
   privateState.value = nextState;
+  if (nextState.sessionToken) {
+    error.value = "";
+    sessionToken.value = nextState.sessionToken;
+    localStorage.setItem("wakamete:sessionToken", nextState.sessionToken);
+  }
 });
 socket.on("chatMessage", (message) => {
   messages.value.push(message);
@@ -120,6 +127,18 @@ socket.on("actionError", (payload) => {
 socket.on("gameEnded", (payload) => {
   gameEnd.value = payload;
 });
+socket.on("connect", () => {
+  if (sessionToken.value) {
+    socket.emit("joinGame", {
+      name: name.value,
+      handleName: handleName.value,
+      color: color.value,
+      password: password.value,
+      sessionToken: sessionToken.value
+    });
+  }
+});
+socket.connect();
 
 onBeforeUnmount(() => {
   window.clearInterval(ticker);
@@ -158,7 +177,13 @@ function joinGame() {
   localStorage.setItem("wakamete:name", name.value);
   localStorage.setItem("wakamete:handleName", handleName.value);
   localStorage.setItem("wakamete:color", color.value);
-  socket.emit("joinGame", { name: name.value, handleName: handleName.value, color: color.value, password: password.value });
+  socket.emit("joinGame", {
+    name: name.value,
+    handleName: handleName.value,
+    color: color.value,
+    password: password.value,
+    sessionToken: sessionToken.value || undefined
+  });
 }
 
 function startGame() {
