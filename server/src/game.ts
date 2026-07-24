@@ -1,30 +1,76 @@
 import {
+  DEFAULT_PLAYER_COLOR,
   FIRST_VICTIM_NAME,
-  HUMAN_PLAYER_LIMIT,
+  PLAYER_COLORS,
   type ChatChannel,
   type ChatMessage,
   type DivineResult,
   type GameEndPayload,
   type GamePhase,
+  type JoinGamePayload,
   type PhaseTimer,
   type PrivateState,
   type PublicGameState,
   type PublicPlayer,
   type Role,
+  type RoomSettings,
   type Team,
   type VoteSummary
 } from "@wakamete-plus/shared";
 
-export const PHASE_DURATIONS_SECONDS: Record<Exclude<GamePhase, "waiting" | "ended">, number> = {
-  dayDiscussion: 180,
-  dayVote: 60,
-  nightDiscussion: 90,
-  nightAttack: 60
+export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
+  roomName: "【モバマス】ほげほげふがふが村",
+  pr: "初心者でも誰でも歓迎！更新時間23:00",
+  durationSeconds: {
+    dayDiscussion: 180,
+    dayVote: 60,
+    nightDiscussion: 90,
+    nightAttack: 60
+  },
+  playerLimit: 6
+};
+
+export const PHASE_DURATIONS_SECONDS = DEFAULT_ROOM_SETTINGS.durationSeconds;
+
+const MIN_DURATION_SECONDS = 30;
+const MAX_DURATION_SECONDS = 300;
+const MIN_PLAYER_LIMIT = 4;
+const MAX_PLAYER_LIMIT = 20;
+
+function normalizeRoomSettings(settings: RoomSettings): RoomSettings {
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  return {
+    roomName: settings.roomName.trim() || DEFAULT_ROOM_SETTINGS.roomName,
+    pr: settings.pr.trim() || DEFAULT_ROOM_SETTINGS.pr,
+    durationSeconds: {
+      dayDiscussion: clamp(settings.durationSeconds.dayDiscussion, MIN_DURATION_SECONDS, MAX_DURATION_SECONDS),
+      dayVote: clamp(settings.durationSeconds.dayVote, MIN_DURATION_SECONDS, MAX_DURATION_SECONDS),
+      nightDiscussion: clamp(settings.durationSeconds.nightDiscussion, MIN_DURATION_SECONDS, MAX_DURATION_SECONDS),
+      nightAttack: clamp(settings.durationSeconds.nightAttack, MIN_DURATION_SECONDS, MAX_DURATION_SECONDS)
+    },
+    playerLimit: clamp(Math.floor(settings.playerLimit), MIN_PLAYER_LIMIT, MAX_PLAYER_LIMIT)
+  };
+}
+
+const FIRST_VICTIM_COLOR = "#9a9690";
+
+interface PlayerJoinOptions {
+  name: string;
+  handleName?: string;
+  color?: string;
+  password?: string;
+}
+
+const DEFAULT_JOIN_OPTIONS: PlayerJoinOptions = {
+  name: ""
 };
 
 interface Player {
   id: string;
   name: string;
+  handleName: string;
+  color: string;
+  password: string;
   alive: boolean;
   npc: boolean;
   connected: boolean;
@@ -73,19 +119,26 @@ export class GameRoom {
   private playerSeq = 0;
   private log: string[] = [];
   private winner: Team | null = null;
+  private readonly settings: RoomSettings;
 
-  constructor(private readonly now: () => number = () => Date.now()) {}
+  constructor(private readonly now: () => number = () => Date.now(), settings: RoomSettings = DEFAULT_ROOM_SETTINGS) {
+    this.settings = normalizeRoomSettings(settings);
+  }
 
-  join(socketId: string, rawName: string): GameEventBundle {
-    const name = rawName.trim();
+  join(socketId: string, payload: string | JoinGamePayload): GameEventBundle {
+    const options = typeof payload === "string" ? { ...DEFAULT_JOIN_OPTIONS, name: payload } : payload;
+    const name = options.name.trim();
+    const handleName = (options.handleName?.trim() || name).slice(0, 24);
+    const color = PLAYER_COLORS.includes(options.color as (typeof PLAYER_COLORS)[number]) ? options.color! : DEFAULT_PLAYER_COLOR;
+    const password = options.password?.trim() ?? "";
     if (!name) {
       throw new Error("名前を入力してください。");
     }
     if (this.phase !== "waiting") {
       throw new Error("ゲーム開始後は参加できません。");
     }
-    if (this.humanPlayers().length >= HUMAN_PLAYER_LIMIT) {
-      throw new Error("参加枠は5人までです。");
+    if (this.humanPlayers().length >= this.humanLimit()) {
+      throw new Error(`参加枠は${this.humanLimit()}人までです。`);
     }
     if (this.humanPlayers().some((player) => player.name === name)) {
       throw new Error("同じ名前のプレイヤーがいます。");
@@ -94,6 +147,9 @@ export class GameRoom {
     const player: Player = {
       id: `p${++this.playerSeq}`,
       name,
+      handleName,
+      color,
+      password,
       alive: true,
       npc: false,
       connected: true,
@@ -120,8 +176,8 @@ export class GameRoom {
     if (this.phase !== "waiting") {
       throw new Error("ゲームはすでに開始しています。");
     }
-    if (this.humanPlayers().length !== HUMAN_PLAYER_LIMIT) {
-      throw new Error("5人そろうと開始できます。");
+    if (this.humanPlayers().length !== this.humanLimit()) {
+      throw new Error(`${this.humanLimit()}人そろうと開始できます。`);
     }
 
     this.addFirstVictim();
@@ -227,11 +283,12 @@ export class GameRoom {
 
   getState(): PublicGameState {
     return {
+      room: this.settings,
       phase: this.phase,
       day: this.day,
       players: [...this.players.values()].map((player) => this.toPublicPlayer(player)),
       timer: this.timer,
-      canStart: this.phase === "waiting" && this.humanPlayers().length === HUMAN_PLAYER_LIMIT,
+      canStart: this.phase === "waiting" && this.humanPlayers().length === this.humanLimit(),
       votes: this.voteSummary(),
       winner: this.winner
     };
@@ -359,6 +416,8 @@ export class GameRoom {
         players: [...this.players.values()].map((player) => ({
           id: player.id,
           name: player.name,
+          handleName: player.handleName,
+          color: player.color,
           alive: player.alive,
           npc: player.npc,
           role: this.requireRole(player)
@@ -375,7 +434,7 @@ export class GameRoom {
     const startedAt = this.now();
     this.timer = {
       startedAt,
-      endsAt: startedAt + PHASE_DURATIONS_SECONDS[phase] * 1000
+      endsAt: startedAt + this.settings.durationSeconds[phase] * 1000
     };
     this.log.push(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`);
   }
@@ -384,6 +443,9 @@ export class GameRoom {
     const firstVictim: Player = {
       id: "npc-first-victim",
       name: FIRST_VICTIM_NAME,
+      handleName: FIRST_VICTIM_NAME,
+      color: FIRST_VICTIM_COLOR,
+      password: "",
       alive: true,
       npc: true,
       connected: false,
@@ -425,6 +487,10 @@ export class GameRoom {
 
   private humanPlayers(): Player[] {
     return [...this.players.values()].filter((player) => !player.npc);
+  }
+
+  private humanLimit(): number {
+    return this.settings.playerLimit - 1;
   }
 
   private livingPlayers(): Player[] {
@@ -487,6 +553,7 @@ export class GameRoom {
     return {
       id: player.id,
       name: player.name,
+      color: player.color,
       alive: player.alive,
       npc: player.npc,
       connected: player.connected,

@@ -35,6 +35,7 @@ button:disabled {
 }
 
 input[type="text"],
+input[type="password"],
 select {
   width: 100%;
   /* min-height: 40px; */
@@ -121,7 +122,7 @@ div.bar{
 
 .join-panel {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   align-items: end;
   gap: 12px;
 }
@@ -130,6 +131,28 @@ div.bar{
   display: grid;
   gap: 6px;
   color: #5f6870;
+}
+
+.color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  padding: 0;
+  box-shadow: 0 0 0 1px #a9a197;
+}
+
+.color-swatch.selected {
+  box-shadow: 0 0 0 2px #1d232a;
 }
 
 .layout {
@@ -200,7 +223,6 @@ div.bar{
 
 .players li .icon{
   border: 1px solid #333;
-  background-color: orange;
 }
 
 .players li img{

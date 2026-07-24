@@ -1,6 +1,19 @@
 export const FIRST_VICTIM_NAME = "初日犠牲者";
 export const HUMAN_PLAYER_LIMIT = 5;
 export const TOTAL_PLAYER_COUNT = 6;
+export const PLAYER_COLORS = [
+  "#d94f45",
+  "#d9892b",
+  "#d4b33c",
+  "#5fa34a",
+  "#2d9b87",
+  "#2f80c7",
+  "#5c6bc0",
+  "#8e5bbf",
+  "#c05a9f",
+  "#6f6259"
+] as const;
+export const DEFAULT_PLAYER_COLOR = PLAYER_COLORS[0];
 
 export type Role = "villager" | "seer" | "werewolf" | "madman";
 export type Team = "villagers" | "werewolves";
@@ -13,10 +26,26 @@ export type GamePhase =
   | "ended";
 
 export type ChatChannel = "public" | "werewolf";
+export type PlayerColor = (typeof PLAYER_COLORS)[number];
+
+export interface RoomSettings {
+  roomName: string;
+  pr: string;
+  durationSeconds: Record<Exclude<GamePhase, "waiting" | "ended">, number>;
+  playerLimit: number;
+}
+
+export interface JoinGamePayload {
+  name: string;
+  handleName?: string;
+  color?: string;
+  password?: string;
+}
 
 export interface PublicPlayer {
   id: string;
   name: string;
+  color: string;
   alive: boolean;
   npc: boolean;
   connected: boolean;
@@ -34,6 +63,7 @@ export interface VoteSummary {
 }
 
 export interface PublicGameState {
+  room: RoomSettings;
   phase: GamePhase;
   day: number;
   players: PublicPlayer[];
@@ -69,12 +99,14 @@ export interface ChatMessage {
 
 export interface GameEndPayload {
   winner: Team;
-  players: Required<Pick<PublicPlayer, "id" | "name" | "alive" | "npc" | "role">>[];
+  players: (Required<Pick<PublicPlayer, "id" | "name" | "color" | "alive" | "npc" | "role">> & {
+    handleName: string;
+  })[];
   log: string[];
 }
 
 export interface ClientToServerEvents {
-  joinGame: (payload: { name: string }) => void;
+  joinGame: (payload: JoinGamePayload) => void;
   startGame: () => void;
   sendChat: (payload: { text: string }) => void;
   vote: (payload: { targetId: string }) => void;

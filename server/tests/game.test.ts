@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FIRST_VICTIM_NAME, type Role } from "@wakamete-plus/shared";
-import { GameRoom } from "../src/game.js";
+import { DEFAULT_ROOM_SETTINGS, GameRoom } from "../src/game.js";
 
 function createStartedRoom() {
   let now = 1_000;
@@ -45,6 +45,28 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 }
 
 describe("GameRoom", () => {
+  it("exposes fixed room settings on the public state", () => {
+    const room = new GameRoom();
+
+    expect(room.getState().room).toEqual(DEFAULT_ROOM_SETTINGS);
+  });
+
+  it("stores join properties while only publishing display color before game end", () => {
+    const room = new GameRoom();
+    const bundle = room.join("s1", {
+      name: "player1",
+      handleName: "owner1",
+      color: "#2f80c7",
+      password: "return-secret"
+    });
+    const player = bundle.state.players[0];
+
+    expect(player?.name).toBe("player1");
+    expect(player?.color).toBe("#2f80c7");
+    expect(player && "handleName" in player).toBe(false);
+    expect(player && "password" in player).toBe(false);
+  });
+
   it("assigns the fixed roles and keeps the first victim from being a werewolf", () => {
     const { room, startBundle } = createStartedRoom();
     const roles = room.getDebugPlayersForTests().map((player) => player.role);

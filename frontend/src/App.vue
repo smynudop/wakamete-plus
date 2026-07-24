@@ -12,6 +12,7 @@ import type {
   ServerToClientEvents,
   ClientToServerEvents
 } from "@wakamete-plus/shared";
+import { DEFAULT_PLAYER_COLOR, PLAYER_COLORS } from "@wakamete-plus/shared";
 
 const roleLabels: Record<Role, string> = {
   villager: "村人",
@@ -31,6 +32,9 @@ const phaseLabels: Record<PublicGameState["phase"], string> = {
 
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
 const name = ref(localStorage.getItem("wakamete:name") ?? "");
+const handleName = ref(localStorage.getItem("wakamete:handleName") ?? "");
+const color = ref(localStorage.getItem("wakamete:color") ?? DEFAULT_PLAYER_COLOR);
+const password = ref("");
 const chatText = ref("");
 const selectedVote = ref("");
 const selectedDivine = ref("");
@@ -61,27 +65,26 @@ const messages = ref<ChatMessage[]>([
 const gameEnd = ref<GameEndPayload | null>(null);
 const now = ref(Date.now());
 const state = ref<PublicGameState>({
+  room: {
+    roomName: "【モバマス】ほげほげふがふが村",
+    pr: "初心者でも誰でも歓迎！更新時間23:00",
+    durationSeconds: {
+      dayDiscussion: 180,
+      dayVote: 60,
+      nightDiscussion: 90,
+      nightAttack: 60
+    },
+    playerLimit: 6
+  },
   phase: "waiting",
   day: 0,
   players: [
-    { id: "1", name: "初日犠牲者", alive: true, connected: true, npc: true },
-    { id: "2", name: "前川みく", alive: true, connected: true, npc: true },
-    { id: "3", name: "荒木比奈", alive: true, connected: true, npc: true },
-    { id: "4", name: "安部菜々", alive: true, connected: true, npc: true },
-    { id: "5", name: "渋谷凛", alive: true, connected: true, npc: true },
-    { id: "6", name: "森久保乃々", alive: true, connected: true, npc: true },
-    { id: "7", name: "棟方愛海", alive: true, connected: true, npc: true },
-    { id: "8", name: "上条春菜", alive: true, connected: true, npc: true },
-    { id: "9", name: "塩見周子", alive: true, connected: true, npc: true },
-    { id: "10", name: "鷺沢文香", alive: true, connected: true, npc: true },
-    { id: "11", name: "kari", alive: true, connected: true, npc: true },
-    { id: "12", name: "小日向美穂", alive: true, connected: true, npc: true },
-    { id: "13", name: "高森藍子", alive: true, connected: true, npc: true },
-    { id: "14", name: "千川ちひろ", alive: true, connected: true, npc: true },
-    { id: "15", name: "龍崎薫", alive: true, connected: true, npc: true },
-    { id: "16", name: "佐藤心", alive: true, connected: true, npc: true },
-    { id: "17", name: "正邪", alive: true, connected: true, npc: true },
-    { id: "18", name: "斉藤洋子bot", alive: true, connected: true, npc: true },
+    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true },
+    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true },
+    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true },
+    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true },
+    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true },
+    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true },
   ],
   timer: null,
   canStart: false,
@@ -153,7 +156,9 @@ const joined = computed(() => privateState.value.playerId !== null || debugState
 function joinGame() {
   error.value = "";
   localStorage.setItem("wakamete:name", name.value);
-  socket.emit("joinGame", { name: name.value });
+  localStorage.setItem("wakamete:handleName", handleName.value);
+  localStorage.setItem("wakamete:color", color.value);
+  socket.emit("joinGame", { name: name.value, handleName: handleName.value, color: color.value, password: password.value });
 }
 
 function startGame() {
@@ -213,7 +218,7 @@ const debugState = ref({
     <aside class="side-panel">
       <ul class="players">
         <li v-for="player in state.players" :key="player.id" :class="{ dead: !player.alive }">
-          <div class="icon">
+          <div class="icon" :style="{ backgroundColor: player.color }">
             <img :src="`${player.name}.png`" />
           </div>
           <div>{{ player.name }}
@@ -244,6 +249,29 @@ const debugState = ref({
           <label>
             プレイヤー名
             <input v-model="name" maxlength="24" @keydown.enter="joinGame" />
+          </label>
+          <label>
+            ハンドル名
+            <input v-model="handleName" maxlength="24" @keydown.enter="joinGame" />
+          </label>
+          <label>
+            色
+            <div class="color-options">
+              <button
+                v-for="presetColor in PLAYER_COLORS"
+                :key="presetColor"
+                type="button"
+                class="color-swatch"
+                :class="{ selected: color === presetColor }"
+                :style="{ backgroundColor: presetColor }"
+                :title="presetColor"
+                @click="color = presetColor"
+              />
+            </div>
+          </label>
+          <label>
+            復帰用パスワード
+            <input v-model="password" type="password" maxlength="64" @keydown.enter="joinGame" />
           </label>
           <button @click="joinGame">参加</button>
         </section>
@@ -290,8 +318,8 @@ const debugState = ref({
     
       <section class="top-bar">
         <div>
-          <h1>【モバマス】ほげほげふがふが村</h1>
-          <p>初心者でも誰でも歓迎！更新時間23:00</p>
+          <h1>{{ state.room.roomName }}</h1>
+          <p>{{ state.room.pr }}</p>
         </div>
         <div class="phase">
           <span>{{ phaseLabels[state.phase] }}</span>
@@ -315,7 +343,7 @@ const debugState = ref({
       <h2>{{ gameEnd.winner === "villagers" ? "村人陣営" : "人狼陣営" }}の勝利</h2>
       <div class="end-grid">
         <p v-for="player in gameEnd.players" :key="player.id">
-          {{ player.name }}: {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
+          {{ player.name }} ({{ player.handleName }}): {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
         </p>
       </div>
     </section>
