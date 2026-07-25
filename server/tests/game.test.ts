@@ -45,6 +45,22 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 }
 
 describe("GameRoom", () => {
+  it("has the first victim before players join the room", () => {
+    const room = new GameRoom();
+
+    expect(room.getState().players).toEqual([
+      expect.objectContaining({
+        id: "npc-first-victim",
+        name: FIRST_VICTIM_NAME,
+        alive: true,
+        npc: true,
+        bot: false,
+        connected: false
+      })
+    ]);
+    expect(room.getState().phase).toBe("waiting");
+  });
+
   it("restores the same player and private state with a session token after the game starts", () => {
     const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => "session-player1");
     const joined = room.join("s1", { name: "player1", password: "return-secret" });
@@ -154,7 +170,7 @@ describe("GameRoom", () => {
       color: "#2f80c7",
       password: "return-secret"
     });
-    const player = bundle.state.players[0];
+    const player = bundle.state.players.find((candidate) => !candidate.npc);
 
     expect(player?.name).toBe("player1");
     expect(player?.color).toBe("#2f80c7");
@@ -221,7 +237,10 @@ describe("GameRoom", () => {
     room.vote(sockets[3]!, targetB.id);
     room.advanceTimer();
 
-    const executedIds = room.getState().players.filter((player) => !player.alive).map((player) => player.id);
+    const executedIds = room.getState().players
+      .filter((player) => !player.npc && !player.alive)
+      .map((player) => player.id);
+    expect(executedIds).toHaveLength(1);
     expect([targetA.id, targetB.id]).toContain(executedIds[0]);
   });
 

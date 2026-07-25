@@ -133,6 +133,7 @@ export class GameRoom {
     private readonly createSessionToken: () => string = randomUUID
   ) {
     this.settings = normalizeRoomSettings(settings);
+    this.addFirstVictim();
   }
 
   join(socketId: string, payload: string | JoinGamePayload): GameEventBundle {
@@ -244,7 +245,6 @@ export class GameRoom {
       throw new Error(`${this.humanLimit()}人そろうと開始できます。`);
     }
 
-    this.addFirstVictim();
     this.assignRoles();
     this.day = 1;
     this.log.push("ゲームを開始しました。");
