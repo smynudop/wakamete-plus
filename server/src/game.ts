@@ -644,17 +644,14 @@ export class GameRoom {
     }
 
     const humans = this.shuffle(this.humanPlayers());
-    const werewolf = humans[0];
-    if (!werewolf) {
-      throw new Error("人狼を割り当てられません。");
+    const humanRoles: Role[] = ["werewolf", "madman", "seer", "villager", "villager"];
+    if (humans.length !== humanRoles.length) {
+      throw new Error("役職を割り当てる人数がそろっていません。");
     }
-    werewolf.role = "werewolf";
-
-    const remainingRoles: Role[] = ["madman", "seer", "villager", "villager", "villager"];
-    const remainingPlayers = this.shuffle([...humans.slice(1), firstVictim]);
-    remainingPlayers.forEach((player, index) => {
-      player.role = remainingRoles[index] ?? "villager";
+    humans.forEach((player, index) => {
+      player.role = humanRoles[index]!;
     });
+    firstVictim.role = "villager";
   }
 
   private bundle(phaseChanged: boolean, ended: GameEndPayload | null): GameEventBundle {

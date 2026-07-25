@@ -329,7 +329,7 @@ describe("GameRoom", () => {
     expect(roles.filter((role) => role === "madman")).toHaveLength(1);
     expect(roles.filter((role) => role === "seer")).toHaveLength(1);
     expect(roles.filter((role) => role === "villager")).toHaveLength(3);
-    expect(firstVictim?.role).not.toBe("werewolf");
+    expect(firstVictim?.role).toBe("villager");
     expect(room.getState().players).toHaveLength(6);
     expect(firstVictim?.alive).toBe(true);
     expect(startBundle.state.phase).toBe("nightDiscussion");
