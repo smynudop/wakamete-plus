@@ -111,10 +111,10 @@ p {
 }
 
 .development-controls {
-  display: grid;
+  /* display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 10px; */
 }
 
 .development-controls[inert] {
@@ -122,8 +122,13 @@ p {
 }
 
 .development-controls label {
-  display: grid;
+  /* display: grid;
   gap: 2px;
-  font-size: 13px;
+  font-size: 13px; */
+  display: block;
+}
+
+select{
+  width: 60%;
 }
 </style>

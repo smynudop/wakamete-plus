@@ -19,6 +19,7 @@ import { DEFAULT_PLAYER_COLOR } from "@wakamete-plus/shared";
 import type { DevelopmentPreviewState } from "./components/DevelopmentPanel.vue";
 import ActionPanel from "./components/ActionPanel.vue"
 import JoinPanel from "./components/JoinPanel.vue";
+import TalkPanel from "./components/TalkPanel.vue";
 import type { JoinState } from "./components/JoinPanel.vue";
 import RoomSettingPanel from "./components/RoomSettingPanel.vue";
 const isDevelopment = import.meta.env.DEV;
@@ -386,7 +387,13 @@ watch(
       <div class="bar">◆あなたの情報</div>
       <div class="role-box">
         <span>あなたの役職は【{{ roleLabels[privateState.role] }}】です。</span>
+        <div v-if="privateState.divineResults.length" class="results">
+          <p v-for="result in privateState.divineResults" :key="`${result.day}-${result.targetId}`">
+            【能力発動】{{ formatDivine(result) }}
+          </p>
+        </div>
       </div>
+
     </template>
     <div class="bar">◆行動</div>
     <aside class="command-panel">
@@ -400,23 +407,20 @@ watch(
             @click="addBot"
           >
             Botを追加
-          </button>
+          </button> 
         </section>
         <room-setting-panel  
           v-if="isGameMaster && state.phase === 'waiting'" 
           v-model="roomSettings" 
           @submit="updateRoomSettings"/>
-        <JoinPanel v-if="!joined" v-model="joinState" @submit="joinGame" />
-        <form v-if="joined" class="chat-form" @submit.prevent="sendChat">
-          <select v-if="chatChannelOptions.length > 1" v-model="chatChannel">
-            <option v-for="option in chatChannelOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-          <input type="text" v-model="chatText" :disabled="!canChat" maxlength="160" />
-          <button :disabled="!canChat">発言</button>
-        </form>
-
+        <JoinPanel v-if="!joined && state.phase=='waiting'" v-model="joinState" @submit="joinGame" />
+        <talk-panel 
+          v-if="joined" 
+          :can-chat="canChat" 
+          :chat-channel-options="chatChannelOptions" 
+          v-model:chat-text="chatText" 
+          v-model:chat-channel="chatChannel"
+          @send="sendChat"/>
         <action-panel 
           v-if="(state.phase === 'dayDiscussion' || state.phase === 'dayVote') && me?.alive"
           v-model="selectedVote" 
@@ -442,12 +446,7 @@ watch(
           @execute="attack"/>
       </div>
 
-      <div v-if="privateState.divineResults.length" class="results">
-        <h2>占い結果</h2>
-        <p v-for="result in privateState.divineResults" :key="`${result.day}-${result.targetId}`">
-          {{ formatDivine(result) }}
-        </p>
-      </div>
+
     </aside>
 
     <div class="bar">◆出来事</div>

@@ -10,14 +10,10 @@ const emits = defineEmits<{
 }>()
 
 function execute(){
-    if(model.value === undefined){
-        return 
-        //todo: どうしよう...?
-    }
     emits("execute", model.value)
 }
 
-const model = defineModel<string>("")
+const model = defineModel<string>({required: true})
 
 </script>
 

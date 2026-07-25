@@ -165,8 +165,6 @@ div.bar{
 }
 
 .role-box {
-  display: grid;
-  gap: 4px;
   margin: .5rem 0;
   padding: .5rem 0;
 }
@@ -212,8 +210,7 @@ div.bar{
   opacity: 0.55;
 }
 
-.actions,
-.results {
+.actions {
   /* display: grid; */
   gap: 10px;
   margin-bottom: 16px;
