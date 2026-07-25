@@ -312,15 +312,6 @@ div.bar{
   gap: 8px;
 }
 
-.dev-panel{
-  position: fixed;
-  bottom: 0;
-  right: 0;
-  width: 200px;
-  height: 200px;
-  background-color: rgba(255, 0, 0, 0.2);
-}
-
 @media (max-width: 760px) {
   .app-shell {
     padding: 16px;

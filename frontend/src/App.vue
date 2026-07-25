@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from "vue";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
@@ -16,6 +16,12 @@ import type {
   ClientToServerEvents
 } from "@wakamete-plus/shared";
 import { DEFAULT_PLAYER_COLOR, PLAYER_COLORS } from "@wakamete-plus/shared";
+import type { DevelopmentPreviewState } from "./components/DevelopmentPanel.vue";
+
+const isDevelopment = import.meta.env.DEV;
+const DevelopmentPanel = isDevelopment
+  ? defineAsyncComponent(() => import("./components/DevelopmentPanel.vue"))
+  : null;
 
 const roleLabels: Record<Role, string> = {
   villager: "村人",
@@ -106,12 +112,25 @@ const roomSettings = ref<RoomSettings>({
   ...state.value.room,
   durationSeconds: { ...state.value.room.durationSeconds }
 });
+const developmentPreview = ref<DevelopmentPreviewState>({
+  enabled: false,
+  joined: true,
+  role: "villager",
+  phase: "waiting",
+  alive: true,
+  gameMaster: false,
+  canStart: false,
+  hasDivineResult: false
+});
 
 const ticker = window.setInterval(() => {
   now.value = Date.now();
 }, 500);
 
 socket.on("gameState", (nextState) => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   state.value = nextState;
   roomSettings.value = {
     ...nextState.room,
@@ -119,6 +138,9 @@ socket.on("gameState", (nextState) => {
   };
 });
 socket.on("privateState", (nextState) => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   privateState.value = nextState;
   if (nextState.sessionToken) {
     error.value = "";
@@ -127,12 +149,21 @@ socket.on("privateState", (nextState) => {
   }
 });
 socket.on("chatMessage", (message) => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   messages.value.push(message);
 });
 socket.on("gameLog", (entry) => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   events.value.push(entry);
 });
 socket.on("phaseChanged", () => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   selectedVote.value = "";
   selectedAttack.value = "";
   chatChannel.value = state.value.phase === "nightDiscussion" || state.value.phase === "nightAttack"
@@ -143,6 +174,9 @@ socket.on("actionError", (payload) => {
   error.value = payload.message;
 });
 socket.on("gameEnded", (payload) => {
+  if (developmentPreview.value.enabled) {
+    return;
+  }
   gameEnd.value = payload;
 });
 socket.on("connect", () => {
@@ -208,7 +242,7 @@ const chatChannelOptions = computed<{ value: ChatChannel; label: string }[]>(() 
   }
   return [{ value: "public", label: state.value.phase === "waiting" || state.value.phase === "ended" ? "チャット" : "議論" }];
 });
-const joined = computed(() => privateState.value.playerId !== null || debugState.value.join);
+const joined = computed(() => privateState.value.playerId !== null);
 
 function joinGame() {
   error.value = "";
@@ -280,9 +314,46 @@ function formatDivine(result: DivineResult) {
   return `${result.day}日目: ${result.targetName} は ${result.result === "werewolf" ? "人狼" : "人間"}`;
 }
 
-const debugState = ref({
-  join: false
-})
+watch(
+  developmentPreview,
+  (preview, previous) => {
+    if (!isDevelopment) {
+      return;
+    }
+    if (!preview.enabled) {
+      if (previous?.enabled) {
+        socket.connect();
+      }
+      return;
+    }
+    if (!previous?.enabled) {
+      socket.disconnect();
+    }
+
+    const previewPlayerId = state.value.players.find((player) => !player.npc)?.id
+      ?? state.value.players[0]?.id
+      ?? "development-player";
+    state.value = {
+      ...state.value,
+      phase: preview.phase,
+      day: preview.phase === "waiting" ? 0 : 2,
+      canStart: preview.canStart,
+      timer: null,
+      players: state.value.players.map((player) => player.id === previewPlayerId
+        ? { ...player, alive: preview.alive, gameMaster: preview.gameMaster }
+        : player)
+    };
+    privateState.value = {
+      playerId: preview.joined ? previewPlayerId : null,
+      role: preview.joined ? preview.role : null,
+      sessionToken: null,
+      divineResults: preview.hasDivineResult
+        ? [{ targetId: "3", targetName: "荒木比奈", result: "human", day: 1 }]
+        : []
+    };
+  },
+  { deep: true }
+);
 </script>
 
 <template>
@@ -325,6 +396,13 @@ const debugState = ref({
       <div class="actions">
         <section v-if="isGameMaster" class="start-panel">
           <button :disabled="!state.canStart" @click="startGame">開始</button>
+          <button
+            v-if="state.phase === 'waiting'"
+            :disabled="state.players.length >= state.room.playerLimit"
+            @click="addBot"
+          >
+            Botを追加
+          </button>
         </section>
         <form v-if="isGameMaster && state.phase === 'waiting'" class="settings-panel" @submit.prevent="updateRoomSettings">
           <label>
@@ -472,14 +550,8 @@ const debugState = ref({
       </div>
     </section>
   </main>
-  <div class="dev-panel">
-    <input type="checkbox" v-model="debugState.join"><label>参加状態</label>
-    <button
-      v-if="isGameMaster"
-      :disabled="state.phase !== 'waiting' || state.players.length >= state.room.playerLimit"
-      @click="addBot"
-    >
-      Botを追加
-    </button>
-  </div>
+  <DevelopmentPanel
+    v-if="isDevelopment && DevelopmentPanel"
+    v-model="developmentPreview"
+  />
 </template>
