@@ -274,6 +274,18 @@ div.bar{
   border-radius: 8px;
 }
 
+.event-log {
+  margin-bottom: 12px;
+  border-left: 3px solid #8b938f;
+  padding: 8px 12px;
+  background: #f3f5f4;
+  color: #454d49;
+}
+
+.event-log p + p {
+  margin-top: 4px;
+}
+
 .messages p {
   display: grid;
   grid-template-columns: 200px 1fr;

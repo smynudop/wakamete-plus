@@ -78,6 +78,23 @@ function broadcast(bundle: GameEventBundle): void {
       io.emit("chatMessage", message);
     }
   }
+  for (const event of bundle.events) {
+    if (event.audience === "public") {
+      io.emit("gameLog", event.entry);
+    } else if (event.audience === "werewolves") {
+      for (const [socketId, privateState] of bundle.privateStates) {
+        if (privateState.role === "werewolf") {
+          io.to(socketId).emit("gameLog", event.entry);
+        }
+      }
+    } else {
+      const recipientSocketId = [...bundle.privateStates.entries()]
+        .find(([, privateState]) => privateState.playerId === event.playerId)?.[0];
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("gameLog", event.entry);
+      }
+    }
+  }
   for (const socketId of io.sockets.sockets.keys()) {
     io.to(socketId).emit("privateState", room.getPrivateState(socketId));
   }

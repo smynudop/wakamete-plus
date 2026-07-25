@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type DivineResult,
   type GameEndPayload,
+  type GameLogEntry,
   type GamePhase,
   type JoinGamePayload,
   type PhaseTimer,
@@ -93,8 +94,15 @@ export interface GameEventBundle {
   state: PublicGameState;
   privateStates: Map<string, PrivateState>;
   chats: ChatMessage[];
+  events: GameLogDispatch[];
   ended: GameEndPayload | null;
   phaseChanged: boolean;
+}
+
+export interface GameLogDispatch {
+  entry: GameLogEntry;
+  audience: "public" | "werewolves" | "private";
+  playerId?: string;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -122,10 +130,12 @@ export class GameRoom {
   private votes = new Map<string, string>();
   private attackTargetId: string | null = null;
   private chatSeq = 0;
+  private logSeq = 0;
   private playerSeq = 0;
   private botSeq = 0;
   private botActions = new Set<string>();
   private log: string[] = [];
+  private pendingEvents: GameLogDispatch[] = [];
   private winner: Team | null = null;
   private postGameChatEndsAt: number | null = null;
   private settings: RoomSettings;
@@ -197,7 +207,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(socketId, player.id);
-    this.log.push(`${name} が参加しました。`);
+    this.record(`${name} が参加しました。`);
     return this.bundle(false, null);
   }
 
@@ -229,7 +239,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(botSocketId, player.id);
-    this.log.push(`${player.name} が参加しました。`);
+    this.record(`${player.name} が参加しました。`);
     return this.bundle(false, null);
   }
 
@@ -253,7 +263,7 @@ export class GameRoom {
 
     this.assignRoles();
     this.day = 1;
-    this.log.push("ゲームを開始しました。");
+    this.record("ゲームを開始しました。");
     this.setPhase("nightDiscussion");
     return this.bundle(true, null);
   }
@@ -331,7 +341,7 @@ export class GameRoom {
       throw new Error("自分には投票できません。");
     }
     this.votes.set(voter.id, target.id);
-    this.log.push(`${voter.name} が ${target.name} に投票しました。`);
+    this.record(`${voter.name} が ${target.name} に投票しました。`, "private", voter.id);
     const result = this.phase === "dayVote" && this.allLivingHumansActed(this.votes)
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -357,7 +367,11 @@ export class GameRoom {
       day: this.day
     };
     seer.divineResults.push(result);
-    this.log.push(`${seer.name} が ${target.name} を占いました。`);
+    this.record(
+      `${seer.name} が ${target.name} を占いました（${result.result === "werewolf" ? "人狼" : "人間"}）。`,
+      "private",
+      seer.id
+    );
     return this.bundle(false, null);
   }
 
@@ -377,7 +391,7 @@ export class GameRoom {
       throw new Error("人狼は襲撃対象にできません。");
     }
     this.attackTargetId = target.id;
-    this.log.push(`${werewolf.name} が襲撃先を ${target.name} に選びました。`);
+    this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`, "werewolves");
     const result = this.phase === "nightAttack"
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -391,6 +405,7 @@ export class GameRoom {
 
   runBotActions(): GameEventBundle {
     const chats: ChatMessage[] = [];
+    const events: GameLogDispatch[] = [];
     let phaseChanged = false;
     let ended: GameEndPayload | null = null;
 
@@ -427,12 +442,14 @@ export class GameRoom {
 
       if (result) {
         chats.push(...result.chats);
+        events.push(...result.events);
         phaseChanged ||= result.phaseChanged;
         ended = result.ended ?? ended;
       }
     }
 
-    return { ...this.bundle(phaseChanged, ended), chats };
+    const bundle = this.bundle(phaseChanged, ended);
+    return { ...bundle, chats, events: [...events, ...bundle.events] };
   }
 
   getState(): PublicGameState {
@@ -443,7 +460,6 @@ export class GameRoom {
       players: [...this.players.values()].map((player) => this.toPublicPlayer(player)),
       timer: this.timer,
       canStart: this.phase === "waiting" && this.humanPlayers().length === this.humanLimit(),
-      votes: this.voteSummary(),
       winner: this.winner
     };
   }
@@ -515,10 +531,13 @@ export class GameRoom {
     for (const targetId of this.votes.values()) {
       counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
     }
-    this.log.push(`投票結果: ${this.voteSummary().map((vote) => `${this.playerName(vote.voterId)} -> ${this.playerName(vote.targetId)}`).join(", ") || "全員棄権"}`);
+    const resultText = [...counts.entries()]
+      .map(([targetId, count]) => `${this.playerName(targetId)} ${count}票`)
+      .join(", ");
+    this.record(`投票結果: ${resultText || "全員棄権"}`, "public");
     this.votes.clear();
     if (counts.size === 0) {
-      this.log.push("処刑は行われませんでした。");
+      this.record("処刑は行われませんでした。", "public");
       return;
     }
 
@@ -526,7 +545,7 @@ export class GameRoom {
     const candidates = [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id);
     const executed = this.requirePlayer(this.pick(candidates));
     executed.alive = false;
-    this.log.push(`${executed.name} が処刑されました。`);
+    this.record(`${executed.name} が処刑されました。`, "public");
   }
 
   private resolveAttack(): void {
@@ -543,7 +562,7 @@ export class GameRoom {
       return;
     }
     target.alive = false;
-    this.log.push(`${target.name} が襲撃されました。`);
+    this.record(`${target.name} が襲撃されました。`, "public");
   }
 
   private checkWinner(): Team | null {
@@ -564,7 +583,7 @@ export class GameRoom {
     this.phase = "ended";
     this.timer = null;
     this.postGameChatEndsAt = this.now() + POST_GAME_CHAT_DURATION_MS;
-    this.log.push(`${winner === "villagers" ? "村人" : "人狼"}陣営の勝利です。`);
+    this.record(`${winner === "villagers" ? "村人" : "人狼"}陣営の勝利です。`, "public");
     return {
       phaseChanged: true,
       gameEnded: {
@@ -596,7 +615,7 @@ export class GameRoom {
       startedAt,
       endsAt: startedAt + this.settings.durationSeconds[phase] * 1000
     };
-    this.log.push(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`);
+    this.record(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`);
   }
 
   private addFirstVictim(): void {
@@ -639,10 +658,12 @@ export class GameRoom {
   }
 
   private bundle(phaseChanged: boolean, ended: GameEndPayload | null): GameEventBundle {
+    const events = this.pendingEvents.splice(0);
     return {
       state: this.getState(),
       privateStates: new Map([...this.socketToPlayer.keys()].map((socketId) => [socketId, this.getPrivateState(socketId)])),
       chats: [],
+      events,
       ended,
       phaseChanged
     };
@@ -684,7 +705,7 @@ export class GameRoom {
     }
     this.socketToPlayer.set(socketId, player.id);
     player.connected = true;
-    this.log.push(`${player.name} が復帰しました。`);
+    this.record(`${player.name} が復帰しました。`);
     return this.bundle(false, null);
   }
 
@@ -751,6 +772,27 @@ export class GameRoom {
 
   private playerName(playerId: string): string {
     return this.players.get(playerId)?.name ?? playerId;
+  }
+
+  private record(
+    text: string,
+    audience?: GameLogDispatch["audience"],
+    playerId?: string
+  ): void {
+    this.log.push(text);
+    if (!audience) {
+      return;
+    }
+    this.pendingEvents.push({
+      entry: {
+        id: `e${++this.logSeq}`,
+        text,
+        day: this.day,
+        phase: this.phase
+      },
+      audience,
+      playerId
+    });
   }
 
   private socketIdForPlayer(playerId: string): string {

@@ -72,8 +72,14 @@ export interface PublicGameState {
   players: PublicPlayer[];
   timer: PhaseTimer | null;
   canStart: boolean;
-  votes: VoteSummary[];
   winner: Team | null;
+}
+
+export interface GameLogEntry {
+  id: string;
+  text: string;
+  day: number;
+  phase: GamePhase;
 }
 
 export interface DivineResult {
@@ -124,6 +130,7 @@ export interface ServerToClientEvents {
   gameState: (state: PublicGameState) => void;
   privateState: (state: PrivateState) => void;
   chatMessage: (message: ChatMessage) => void;
+  gameLog: (entry: GameLogEntry) => void;
   phaseChanged: (state: PublicGameState) => void;
   actionError: (payload: { message: string }) => void;
   gameEnded: (payload: GameEndPayload) => void;

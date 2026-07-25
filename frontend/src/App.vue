@@ -7,6 +7,7 @@ import type {
   ChatMessage,
   DivineResult,
   GameEndPayload,
+  GameLogEntry,
   PrivateState,
   PublicGameState,
   RoomSettings,
@@ -67,6 +68,7 @@ const messages = ref<ChatMessage[]>([
   }
 ]);
 const gameEnd = ref<GameEndPayload | null>(null);
+const events = ref<GameLogEntry[]>([]);
 const now = ref(Date.now());
 const state = ref<PublicGameState>({
   room: {
@@ -92,7 +94,6 @@ const state = ref<PublicGameState>({
   ],
   timer: null,
   canStart: false,
-  votes: [],
   winner: null
 });
 const privateState = ref<PrivateState>({
@@ -127,6 +128,9 @@ socket.on("privateState", (nextState) => {
 });
 socket.on("chatMessage", (message) => {
   messages.value.push(message);
+});
+socket.on("gameLog", (entry) => {
+  events.value.push(entry);
 });
 socket.on("phaseChanged", () => {
   selectedVote.value = "";
@@ -428,6 +432,9 @@ const debugState = ref({
     <div class="bar">◆出来事</div>
 
     <section class="main-panel">
+      <div v-if="events.length" class="event-log">
+        <p v-for="event in events" :key="event.id">{{ event.text }}</p>
+      </div>
     
       <section class="top-bar">
         <div>
@@ -458,6 +465,10 @@ const debugState = ref({
         <p v-for="player in gameEnd.players" :key="player.id">
           {{ player.name }} ({{ player.handleName }}): {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
         </p>
+      </div>
+      <h2>全ログ</h2>
+      <div class="event-log">
+        <p v-for="(entry, index) in gameEnd.log" :key="index">{{ entry }}</p>
       </div>
     </section>
   </main>

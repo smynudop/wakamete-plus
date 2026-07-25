@@ -179,7 +179,7 @@ describe("GameRoom", () => {
 
     room.advanceTimer();
     room.runBotActions();
-    expect(room.getState().votes).toHaveLength(4);
+    expect(room.getState().phase).toBe("dayVote");
   });
 
   it("exposes fixed room settings on the public state", () => {
@@ -259,11 +259,65 @@ describe("GameRoom", () => {
     const voterId = room.getPrivateState(sockets[0]!).playerId;
     const target = room.getState().players.find((player) => !player.npc && player.id !== voterId)!;
     expect(room.vote(sockets[0]!, target.id).state.phase).toBe("dayDiscussion");
-    expect(room.getState().votes).toHaveLength(1);
 
     const votePhase = room.advanceTimer().state;
     expect(votePhase.phase).toBe("dayVote");
-    expect(votePhase.votes).toHaveLength(1);
+    for (const socketId of sockets.slice(1)) {
+      const currentVoterId = room.getPrivateState(socketId).playerId;
+      room.vote(socketId, currentVoterId === target.id ? voterId! : target.id);
+    }
+    expect(room.getState().phase).not.toBe("dayVote");
+  });
+
+  it("creates immediate logs with public, werewolf, and private audiences", () => {
+    const { room, startBundle } = createStartedRoom();
+    const werewolfSocket = socketForRole(startBundle, "werewolf");
+    const seerSocket = socketForRole(startBundle, "seer");
+    const seerId = playerIdForSocket(startBundle, seerSocket);
+    const divineTarget = room.getState().players.find((player) => player.alive && player.id !== seerId)!;
+    const firstVictim = room.getState().players.find((player) => player.name === FIRST_VICTIM_NAME)!;
+
+    const divineLog = room.divine(seerSocket, divineTarget.id).events[0];
+    expect(divineLog?.audience).toBe("private");
+    expect(divineLog?.playerId).toBe(seerId);
+    expect(divineLog?.entry.text).toContain("占いました");
+
+    const attackLog = room.attack(werewolfSocket, firstVictim.id).events[0];
+    expect(attackLog?.audience).toBe("werewolves");
+    expect(attackLog?.entry.text).toContain("襲撃先");
+
+    room.advanceTimer();
+    const deathLog = room.advanceTimer().events;
+    expect(deathLog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          audience: "public",
+          entry: expect.objectContaining({ text: `${FIRST_VICTIM_NAME} が襲撃されました。` })
+        })
+      ])
+    );
+  });
+
+  it("publishes vote totals and the execution after voting ends", () => {
+    const { room, sockets } = createStartedRoom();
+    room.advanceTimer();
+    room.advanceTimer();
+    room.advanceTimer();
+
+    const players = room.getState().players.filter((player) => !player.npc);
+    const target = players[0]!;
+    const fallback = players[1]!;
+    let finalEvents: ReturnType<GameRoom["vote"]>["events"] = [];
+    for (const socketId of sockets) {
+      const voterId = room.getPrivateState(socketId).playerId;
+      finalEvents = room.vote(socketId, voterId === target.id ? fallback.id : target.id).events;
+    }
+
+    const publicTexts = finalEvents
+      .filter((event) => event.audience === "public")
+      .map((event) => event.entry.text);
+    expect(publicTexts.some((text) => text.includes(`${target.name} 4票`))).toBe(true);
+    expect(publicTexts.some((text) => text === `${target.name} が処刑されました。`)).toBe(true);
   });
 
   it("assigns the fixed roles and keeps the first victim from being a werewolf", () => {
