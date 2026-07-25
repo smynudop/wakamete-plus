@@ -62,7 +62,6 @@ select {
 
 .top-bar,
 .layout,
-.join-panel,
 .end-panel {
 
   margin: 0 auto 16px;
@@ -127,19 +126,6 @@ div.bar{
   color: #812929;
 }
 
-.join-panel {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
-  align-items: end;
-  gap: 12px;
-}
-
-.join-panel label {
-  display: grid;
-  gap: 6px;
-  color: #5f6870;
-}
-
 .settings-panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -152,28 +138,6 @@ div.bar{
   display: grid;
   gap: 4px;
   color: #5f6870;
-}
-
-.color-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-height: 32px;
-  align-items: center;
-}
-
-.color-swatch {
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  padding: 0;
-  box-shadow: 0 0 0 1px #a9a197;
-}
-
-.color-swatch.selected {
-  box-shadow: 0 0 0 2px #1d232a;
 }
 
 .layout {
@@ -311,8 +275,7 @@ div.bar{
   }
 
   .top-bar,
-  .layout,
-  .join-panel {
+  .layout {
     grid-template-columns: 1fr;
   }
 

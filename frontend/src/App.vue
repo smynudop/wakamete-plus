@@ -15,9 +15,11 @@ import type {
   ServerToClientEvents,
   ClientToServerEvents
 } from "@wakamete-plus/shared";
-import { DEFAULT_PLAYER_COLOR, PLAYER_COLORS } from "@wakamete-plus/shared";
+import { DEFAULT_PLAYER_COLOR } from "@wakamete-plus/shared";
 import type { DevelopmentPreviewState } from "./components/DevelopmentPanel.vue";
 import ActionPanel from "./components/ActionPanel.vue"
+import JoinPanel from "./components/JoinPanel.vue";
+import type { JoinState } from "./components/JoinPanel.vue";
 import RoomSettingPanel from "./components/RoomSettingPanel.vue";
 const isDevelopment = import.meta.env.DEV;
 const DevelopmentPanel = isDevelopment
@@ -41,11 +43,13 @@ const phaseLabels: Record<PublicGameState["phase"], string> = {
 };
 
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({ autoConnect: false });
-const name = ref(localStorage.getItem("wakamete:name") ?? "");
-const handleName = ref(localStorage.getItem("wakamete:handleName") ?? "");
-const color = ref(localStorage.getItem("wakamete:color") ?? DEFAULT_PLAYER_COLOR);
-const password = ref("");
-const sessionToken = ref(localStorage.getItem("wakamete:sessionToken") ?? "");
+const joinState = ref<JoinState>({
+  name: localStorage.getItem("wakamete:name") ?? "",
+  handleName: localStorage.getItem("wakamete:handleName") ?? "",
+  color: localStorage.getItem("wakamete:color") ?? DEFAULT_PLAYER_COLOR,
+  password: "",
+  sessionToken: localStorage.getItem("wakamete:sessionToken") ?? ""
+});
 const chatText = ref("");
 const chatChannel = ref<ChatChannel>("public");
 const selectedVote = ref("");
@@ -145,7 +149,7 @@ socket.on("privateState", (nextState) => {
   privateState.value = nextState;
   if (nextState.sessionToken) {
     error.value = "";
-    sessionToken.value = nextState.sessionToken;
+    joinState.value.sessionToken = nextState.sessionToken;
     localStorage.setItem("wakamete:sessionToken", nextState.sessionToken);
   }
 });
@@ -181,13 +185,10 @@ socket.on("gameEnded", (payload) => {
   gameEnd.value = payload;
 });
 socket.on("connect", () => {
-  if (sessionToken.value) {
+  if (joinState.value.sessionToken) {
     socket.emit("joinGame", {
-      name: name.value,
-      handleName: handleName.value,
-      color: color.value,
-      password: password.value,
-      sessionToken: sessionToken.value
+      ...joinState.value,
+      sessionToken: joinState.value.sessionToken
     });
   }
 });
@@ -247,15 +248,12 @@ const joined = computed(() => privateState.value.playerId !== null);
 
 function joinGame() {
   error.value = "";
-  localStorage.setItem("wakamete:name", name.value);
-  localStorage.setItem("wakamete:handleName", handleName.value);
-  localStorage.setItem("wakamete:color", color.value);
+  localStorage.setItem("wakamete:name", joinState.value.name);
+  localStorage.setItem("wakamete:handleName", joinState.value.handleName);
+  localStorage.setItem("wakamete:color", joinState.value.color);
   socket.emit("joinGame", {
-    name: name.value,
-    handleName: handleName.value,
-    color: color.value,
-    password: password.value,
-    sessionToken: sessionToken.value || undefined
+    ...joinState.value,
+    sessionToken: joinState.value.sessionToken || undefined
   });
 }
 
@@ -408,36 +406,7 @@ watch(
           v-if="isGameMaster && state.phase === 'waiting'" 
           v-model="roomSettings" 
           @submit="updateRoomSettings"/>
-        <section v-if="!joined" class="join-panel">
-          <label>
-            プレイヤー名
-            <input v-model="name" maxlength="24" @keydown.enter="joinGame" />
-          </label>
-          <label>
-            ハンドル名
-            <input v-model="handleName" maxlength="24" @keydown.enter="joinGame" />
-          </label>
-          <label>
-            色
-            <div class="color-options">
-              <button
-                v-for="presetColor in PLAYER_COLORS"
-                :key="presetColor"
-                type="button"
-                class="color-swatch"
-                :class="{ selected: color === presetColor }"
-                :style="{ backgroundColor: presetColor }"
-                :title="presetColor"
-                @click="color = presetColor"
-              />
-            </div>
-          </label>
-          <label>
-            復帰用パスワード
-            <input v-model="password" type="password" maxlength="64" @keydown.enter="joinGame" />
-          </label>
-          <button @click="joinGame">参加</button>
-        </section>
+        <JoinPanel v-if="!joined" v-model="joinState" @submit="joinGame" />
         <form v-if="joined" class="chat-form" @submit.prevent="sendChat">
           <select v-if="chatChannelOptions.length > 1" v-model="chatChannel">
             <option v-for="option in chatChannelOptions" :key="option.value" :value="option.value">
