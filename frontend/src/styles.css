@@ -199,6 +199,10 @@ div.bar{
   gap: 10px;
 }
 
+.chat-form:has(select) {
+  grid-template-columns: minmax(120px, auto) 1fr auto;
+}
+
 .role-box {
   display: grid;
   gap: 4px;
@@ -279,6 +283,11 @@ div.bar{
 
 .messages p.werewolf {
   color: #8b2430;
+}
+
+.messages p.monologue {
+  color: #596273;
+  font-style: italic;
 }
 
 .end-panel {

@@ -206,6 +206,66 @@ describe("GameRoom", () => {
     expect(bundle.privateStates.get("s1")?.sessionToken).toBeTruthy();
   });
 
+  it("allows public chat before play and the appropriate private channels at night", () => {
+    const waitingRoom = new GameRoom();
+    waitingRoom.join("s1", "player1");
+    expect(waitingRoom.sendChat("s1", "開始前です", "werewolf").chats[0]?.channel).toBe("public");
+
+    const { room, startBundle } = createStartedRoom();
+    const werewolfSocket = socketForRole(startBundle, "werewolf");
+    const nonWerewolfSocket = rolesFrom(startBundle).find(({ role }) => role !== "werewolf")!.socketId;
+
+    expect(room.sendChat(nonWerewolfSocket, "独り言", "monologue").chats[0]?.channel).toBe("monologue");
+    expect(() => room.sendChat(nonWerewolfSocket, "狼会話", "werewolf")).toThrow(
+      "このフェーズでは指定した発言を送信できません。"
+    );
+    expect(room.sendChat(werewolfSocket, "狼会話", "werewolf").chats[0]?.channel).toBe("werewolf");
+
+    room.advanceTimer();
+    expect(room.sendChat(nonWerewolfSocket, "襲撃中の独り言", "monologue").chats[0]?.channel).toBe("monologue");
+    expect(() => room.sendChat(werewolfSocket, "襲撃中の狼会話", "werewolf")).toThrow(
+      "このフェーズでは指定した発言を送信できません。"
+    );
+  });
+
+  it("accepts night abilities in both night phases and keeps an early attack target", () => {
+    const { room, startBundle } = createStartedRoom();
+    const werewolfSocket = socketForRole(startBundle, "werewolf");
+    const seerSocket = socketForRole(startBundle, "seer");
+    const seerId = playerIdForSocket(startBundle, seerSocket);
+    const divineTarget = room.getState().players.find((player) => player.alive && player.id !== seerId)!;
+    const firstVictim = room.getState().players.find((player) => player.name === FIRST_VICTIM_NAME)!;
+
+    expect(room.divine(seerSocket, divineTarget.id).state.phase).toBe("nightDiscussion");
+    expect(room.attack(werewolfSocket, firstVictim.id).state.phase).toBe("nightDiscussion");
+    expect(room.advanceTimer().state.phase).toBe("nightAttack");
+    expect(room.advanceTimer().state.players.find((player) => player.id === firstVictim.id)?.alive).toBe(false);
+
+    const secondRoom = createStartedRoom();
+    const secondSeerSocket = socketForRole(secondRoom.startBundle, "seer");
+    const secondSeerId = playerIdForSocket(secondRoom.startBundle, secondSeerSocket);
+    const secondTarget = secondRoom.room.getState().players.find(
+      (player) => player.alive && player.id !== secondSeerId
+    )!;
+    secondRoom.room.advanceTimer();
+    expect(secondRoom.room.divine(secondSeerSocket, secondTarget.id).state.phase).toBe("nightAttack");
+  });
+
+  it("keeps votes cast during day discussion for the vote phase", () => {
+    const { room, sockets } = createStartedRoom();
+    room.advanceTimer();
+    room.advanceTimer();
+
+    const voterId = room.getPrivateState(sockets[0]!).playerId;
+    const target = room.getState().players.find((player) => !player.npc && player.id !== voterId)!;
+    expect(room.vote(sockets[0]!, target.id).state.phase).toBe("dayDiscussion");
+    expect(room.getState().votes).toHaveLength(1);
+
+    const votePhase = room.advanceTimer().state;
+    expect(votePhase.phase).toBe("dayVote");
+    expect(votePhase.votes).toHaveLength(1);
+  });
+
   it("assigns the fixed roles and keeps the first victim from being a werewolf", () => {
     const { room, startBundle } = createStartedRoom();
     const roles = room.getDebugPlayersForTests().map((player) => player.role);

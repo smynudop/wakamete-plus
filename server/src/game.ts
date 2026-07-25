@@ -37,6 +37,7 @@ const MIN_DURATION_SECONDS = 30;
 const MAX_DURATION_SECONDS = 300;
 const MIN_PLAYER_LIMIT = 4;
 const MAX_PLAYER_LIMIT = 20;
+const POST_GAME_CHAT_DURATION_MS = 5 * 60 * 1000;
 
 function normalizeRoomSettings(settings: RoomSettings): RoomSettings {
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -126,6 +127,7 @@ export class GameRoom {
   private botActions = new Set<string>();
   private log: string[] = [];
   private winner: Team | null = null;
+  private postGameChatEndsAt: number | null = null;
   private settings: RoomSettings;
 
   constructor(
@@ -269,20 +271,41 @@ export class GameRoom {
     return this.bundle(false, null);
   }
 
-  sendChat(socketId: string, text: string): GameEventBundle {
-    const player = this.requireAliveSocketPlayer(socketId);
+  sendChat(socketId: string, text: string, requestedChannel: ChatChannel = "public"): GameEventBundle {
+    const player = this.requireSocketPlayer(socketId);
     const normalizedText = text.trim();
     if (!normalizedText) {
       throw new Error("メッセージを入力してください。");
     }
 
     let channel: ChatChannel;
-    if (this.phase === "dayDiscussion") {
+    if (this.phase === "waiting") {
       channel = "public";
-    } else if (this.phase === "nightDiscussion" && player.role === "werewolf") {
-      channel = "werewolf";
+    } else if (this.phase === "ended") {
+      if (this.postGameChatEndsAt === null || this.now() > this.postGameChatEndsAt) {
+        throw new Error("終了後チャットの受付時間を過ぎています。");
+      }
+      channel = "public";
     } else {
-      throw new Error("このフェーズではチャットできません。");
+      if (!player.alive) {
+        throw new Error("死亡したプレイヤーは発言できません。");
+      }
+      if (this.phase === "dayDiscussion") {
+        channel = "public";
+      } else if (
+        this.phase === "nightDiscussion"
+        && requestedChannel === "werewolf"
+        && player.role === "werewolf"
+      ) {
+        channel = "werewolf";
+      } else if (
+        (this.phase === "nightDiscussion" || this.phase === "nightAttack")
+        && requestedChannel === "monologue"
+      ) {
+        channel = "monologue";
+      } else {
+        throw new Error("このフェーズでは指定した発言を送信できません。");
+      }
     }
 
     const message: ChatMessage = {
@@ -300,8 +323,8 @@ export class GameRoom {
 
   vote(socketId: string, targetId: string): GameEventBundle {
     const voter = this.requireAliveSocketPlayer(socketId);
-    if (this.phase !== "dayVote") {
-      throw new Error("投票フェーズではありません。");
+    if (this.phase !== "dayDiscussion" && this.phase !== "dayVote") {
+      throw new Error("投票は昼の議論・投票中に行えます。");
     }
     const target = this.requireAlivePlayer(targetId);
     if (voter.id === target.id) {
@@ -309,14 +332,16 @@ export class GameRoom {
     }
     this.votes.set(voter.id, target.id);
     this.log.push(`${voter.name} が ${target.name} に投票しました。`);
-    const result = this.allLivingHumansActed(this.votes) ? this.resolveCurrentPhase() : { phaseChanged: false, gameEnded: null };
+    const result = this.phase === "dayVote" && this.allLivingHumansActed(this.votes)
+      ? this.resolveCurrentPhase()
+      : { phaseChanged: false, gameEnded: null };
     return this.bundle(result.phaseChanged, result.gameEnded);
   }
 
   divine(socketId: string, targetId: string): GameEventBundle {
     const seer = this.requireAliveSocketPlayer(socketId);
-    if (this.phase !== "nightDiscussion") {
-      throw new Error("占いは夜の議論中に行えます。");
+    if (this.phase !== "nightDiscussion" && this.phase !== "nightAttack") {
+      throw new Error("占いは夜の議論・襲撃中に行えます。");
     }
     if (seer.role !== "seer") {
       throw new Error("占い師だけが占えます。");
@@ -338,8 +363,8 @@ export class GameRoom {
 
   attack(socketId: string, targetId: string): GameEventBundle {
     const werewolf = this.requireAliveSocketPlayer(socketId);
-    if (this.phase !== "nightAttack") {
-      throw new Error("襲撃フェーズではありません。");
+    if (this.phase !== "nightDiscussion" && this.phase !== "nightAttack") {
+      throw new Error("襲撃は夜の議論・襲撃中に行えます。");
     }
     if (werewolf.role !== "werewolf") {
       throw new Error("人狼だけが襲撃できます。");
@@ -353,7 +378,9 @@ export class GameRoom {
     }
     this.attackTargetId = target.id;
     this.log.push(`${werewolf.name} が襲撃先を ${target.name} に選びました。`);
-    const result = this.resolveCurrentPhase();
+    const result = this.phase === "nightAttack"
+      ? this.resolveCurrentPhase()
+      : { phaseChanged: false, gameEnded: null };
     return this.bundle(result.phaseChanged, result.gameEnded);
   }
 
@@ -536,6 +563,7 @@ export class GameRoom {
     this.winner = winner;
     this.phase = "ended";
     this.timer = null;
+    this.postGameChatEndsAt = this.now() + POST_GAME_CHAT_DURATION_MS;
     this.log.push(`${winner === "villagers" ? "村人" : "人狼"}陣営の勝利です。`);
     return {
       phaseChanged: true,
@@ -557,8 +585,12 @@ export class GameRoom {
 
   private setPhase(phase: Exclude<GamePhase, "waiting" | "ended">): void {
     this.phase = phase;
-    this.votes.clear();
-    this.attackTargetId = null;
+    if (phase === "dayDiscussion") {
+      this.votes.clear();
+    }
+    if (phase === "nightDiscussion") {
+      this.attackTargetId = null;
+    }
     const startedAt = this.now();
     this.timer = {
       startedAt,

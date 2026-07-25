@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from "vue";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
+  ChatChannel,
   ChatMessage,
   DivineResult,
   GameEndPayload,
@@ -38,6 +39,7 @@ const color = ref(localStorage.getItem("wakamete:color") ?? DEFAULT_PLAYER_COLOR
 const password = ref("");
 const sessionToken = ref(localStorage.getItem("wakamete:sessionToken") ?? "");
 const chatText = ref("");
+const chatChannel = ref<ChatChannel>("public");
 const selectedVote = ref("");
 const selectedDivine = ref("");
 const selectedAttack = ref("");
@@ -129,6 +131,9 @@ socket.on("chatMessage", (message) => {
 socket.on("phaseChanged", () => {
   selectedVote.value = "";
   selectedAttack.value = "";
+  chatChannel.value = state.value.phase === "nightDiscussion" || state.value.phase === "nightAttack"
+    ? "monologue"
+    : "public";
 });
 socket.on("actionError", (payload) => {
   error.value = payload.message;
@@ -172,13 +177,32 @@ const remainingSeconds = computed(() => {
   return Math.max(0, Math.ceil((state.value.timer.endsAt - now.value) / 1000));
 });
 const canChat = computed(() => {
+  if (!joined.value) {
+    return false;
+  }
+  if (state.value.phase === "waiting" || state.value.phase === "ended") {
+    return true;
+  }
   if (!me.value?.alive) {
     return false;
   }
-  if (state.value.phase === "dayDiscussion") {
-    return true;
+  return state.value.phase === "dayDiscussion"
+    || state.value.phase === "nightDiscussion"
+    || state.value.phase === "nightAttack";
+});
+const chatChannelOptions = computed<{ value: ChatChannel; label: string }[]>(() => {
+  if (state.value.phase === "nightDiscussion") {
+    return privateState.value.role === "werewolf"
+      ? [
+          { value: "werewolf", label: "人狼の議論" },
+          { value: "monologue", label: "独り言" }
+        ]
+      : [{ value: "monologue", label: "独り言" }];
   }
-  return state.value.phase === "nightDiscussion" && privateState.value.role === "werewolf";
+  if (state.value.phase === "nightAttack") {
+    return [{ value: "monologue", label: "独り言" }];
+  }
+  return [{ value: "public", label: state.value.phase === "waiting" || state.value.phase === "ended" ? "チャット" : "議論" }];
 });
 const joined = computed(() => privateState.value.playerId !== null || debugState.value.join);
 
@@ -216,7 +240,11 @@ function updateRoomSettings() {
 
 function sendChat() {
   error.value = "";
-  socket.emit("sendChat", { text: chatText.value });
+  const channel = chatChannelOptions.value.some((option) => option.value === chatChannel.value)
+    ? chatChannel.value
+    : chatChannelOptions.value[0]?.value ?? "public";
+  chatChannel.value = channel;
+  socket.emit("sendChat", { text: chatText.value, channel });
   chatText.value = "";
 }
 
@@ -355,11 +383,16 @@ const debugState = ref({
           </label>
           <button @click="joinGame">参加</button>
         </section>
-        <form v-if="joined"  class="chat-form" @submit.prevent="sendChat">
+        <form v-if="joined" class="chat-form" @submit.prevent="sendChat">
+          <select v-if="chatChannelOptions.length > 1" v-model="chatChannel">
+            <option v-for="option in chatChannelOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
           <input type="text" v-model="chatText" :disabled="!canChat" maxlength="160" />
           <button :disabled="!canChat">発言</button>
         </form>
-        <div v-if="state.phase === 'dayVote' && me?.alive" class="action-line">
+        <div v-if="(state.phase === 'dayDiscussion' || state.phase === 'dayVote') && me?.alive" class="action-line">
           <select v-model="selectedVote">
             <option value="">投票先</option>
             <option v-for="player in voteTargets" :key="player.id" :value="player.id">{{ player.name }}</option>
@@ -367,7 +400,7 @@ const debugState = ref({
           <button @click="vote">投票</button>
         </div>
 
-        <div v-if="state.phase === 'nightDiscussion' && privateState.role === 'seer' && me?.alive" class="action-line">
+        <div v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'seer' && me?.alive" class="action-line">
           <select v-model="selectedDivine">
             <option value="">占い先</option>
             <option v-for="player in divineTargets" :key="player.id" :value="player.id">{{ player.name }}</option>
@@ -375,7 +408,7 @@ const debugState = ref({
           <button @click="divine">占う</button>
         </div>
 
-        <div v-if="state.phase === 'nightAttack' && privateState.role === 'werewolf' && me?.alive" class="action-line">
+        <div v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'werewolf' && me?.alive" class="action-line">
           <select v-model="selectedAttack">
             <option value="">襲撃先</option>
             <option v-for="player in attackTargets" :key="player.id" :value="player.id">{{ player.name }}</option>

@@ -31,7 +31,7 @@ io.on("connection", (socket) => {
   socket.on("addBot", () => handle(socket.id, () => room.addBot(socket.id)));
   socket.on("startGame", () => handle(socket.id, () => room.start(socket.id)));
   socket.on("updateRoomSettings", (settings) => handle(socket.id, () => room.updateRoomSettings(socket.id, settings)));
-  socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text)));
+  socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text, payload.channel)));
   socket.on("vote", (payload) => handle(socket.id, () => room.vote(socket.id, payload.targetId)));
   socket.on("divine", (payload) => handle(socket.id, () => room.divine(socket.id, payload.targetId)));
   socket.on("attack", (payload) => handle(socket.id, () => room.attack(socket.id, payload.targetId)));
@@ -62,7 +62,13 @@ function broadcast(bundle: GameEventBundle): void {
     io.emit("phaseChanged", bundle.state);
   }
   for (const message of bundle.chats) {
-    if (message.channel === "werewolf") {
+    if (message.channel === "monologue") {
+      const senderSocketId = [...bundle.privateStates.entries()]
+        .find(([, privateState]) => privateState.playerId === message.senderId)?.[0];
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("chatMessage", message);
+      }
+    } else if (message.channel === "werewolf") {
       for (const [socketId, privateState] of bundle.privateStates) {
         if (privateState.role === "werewolf") {
           io.to(socketId).emit("chatMessage", message);

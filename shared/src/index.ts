@@ -25,7 +25,7 @@ export type GamePhase =
   | "dayVote"
   | "ended";
 
-export type ChatChannel = "public" | "werewolf";
+export type ChatChannel = "public" | "werewolf" | "monologue";
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 export interface RoomSettings {
@@ -114,7 +114,7 @@ export interface ClientToServerEvents {
   addBot: () => void;
   startGame: () => void;
   updateRoomSettings: (settings: RoomSettings) => void;
-  sendChat: (payload: { text: string }) => void;
+  sendChat: (payload: { text: string; channel: ChatChannel }) => void;
   vote: (payload: { targetId: string }) => void;
   divine: (payload: { targetId: string }) => void;
   attack: (payload: { targetId: string }) => void;
