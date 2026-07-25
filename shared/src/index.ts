@@ -50,6 +50,7 @@ export interface PublicPlayer {
   alive: boolean;
   npc: boolean;
   bot: boolean;
+  gameMaster: boolean;
   connected: boolean;
   role?: Role;
 }
@@ -112,6 +113,7 @@ export interface ClientToServerEvents {
   joinGame: (payload: JoinGamePayload) => void;
   addBot: () => void;
   startGame: () => void;
+  updateRoomSettings: (settings: RoomSettings) => void;
   sendChat: (payload: { text: string }) => void;
   vote: (payload: { targetId: string }) => void;
   divine: (payload: { targetId: string }) => void;

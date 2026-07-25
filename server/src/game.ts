@@ -76,6 +76,7 @@ interface Player {
   alive: boolean;
   npc: boolean;
   bot: boolean;
+  gameMaster: boolean;
   connected: boolean;
   sessionToken: string | null;
   role: Role | null;
@@ -125,7 +126,7 @@ export class GameRoom {
   private botActions = new Set<string>();
   private log: string[] = [];
   private winner: Team | null = null;
-  private readonly settings: RoomSettings;
+  private settings: RoomSettings;
 
   constructor(
     private readonly now: () => number = () => Date.now(),
@@ -186,6 +187,7 @@ export class GameRoom {
       alive: true,
       npc: false,
       bot: false,
+      gameMaster: this.humanPlayers().length === 0,
       connected: true,
       sessionToken: this.createSessionToken(),
       role: null,
@@ -197,7 +199,8 @@ export class GameRoom {
     return this.bundle(false, null);
   }
 
-  addBot(): GameEventBundle {
+  addBot(socketId: string): GameEventBundle {
+    this.requireGameMaster(socketId);
     if (this.phase !== "waiting") {
       throw new Error("ゲーム開始後はBotを追加できません。");
     }
@@ -206,7 +209,7 @@ export class GameRoom {
     }
 
     const botNumber = ++this.botSeq;
-    const socketId = `bot-${botNumber}`;
+    const botSocketId = `bot-${botNumber}`;
     const player: Player = {
       id: `p${++this.playerSeq}`,
       name: `開発Bot${botNumber}`,
@@ -216,13 +219,14 @@ export class GameRoom {
       alive: true,
       npc: false,
       bot: true,
+      gameMaster: false,
       connected: true,
       sessionToken: null,
       role: null,
       divineResults: []
     };
     this.players.set(player.id, player);
-    this.socketToPlayer.set(socketId, player.id);
+    this.socketToPlayer.set(botSocketId, player.id);
     this.log.push(`${player.name} が参加しました。`);
     return this.bundle(false, null);
   }
@@ -237,7 +241,7 @@ export class GameRoom {
   }
 
   start(socketId: string): GameEventBundle {
-    this.requireSocketPlayer(socketId);
+    this.requireGameMaster(socketId);
     if (this.phase !== "waiting") {
       throw new Error("ゲームはすでに開始しています。");
     }
@@ -250,6 +254,19 @@ export class GameRoom {
     this.log.push("ゲームを開始しました。");
     this.setPhase("nightDiscussion");
     return this.bundle(true, null);
+  }
+
+  updateRoomSettings(socketId: string, settings: RoomSettings): GameEventBundle {
+    this.requireGameMaster(socketId);
+    if (this.phase !== "waiting") {
+      throw new Error("ゲーム開始後はルーム設定を変更できません。");
+    }
+    const normalized = normalizeRoomSettings(settings);
+    if (this.humanPlayers().length > normalized.playerLimit - 1) {
+      throw new Error("現在の参加人数より少ない定員には変更できません。");
+    }
+    this.settings = normalized;
+    return this.bundle(false, null);
   }
 
   sendChat(socketId: string, text: string): GameEventBundle {
@@ -560,6 +577,7 @@ export class GameRoom {
       alive: true,
       npc: true,
       bot: false,
+      gameMaster: false,
       connected: false,
       sessionToken: null,
       role: null,
@@ -654,6 +672,14 @@ export class GameRoom {
     return player;
   }
 
+  private requireGameMaster(socketId: string): Player {
+    const player = this.requireSocketPlayer(socketId);
+    if (!player.gameMaster) {
+      throw new Error("ゲームマスターだけが実行できます。");
+    }
+    return player;
+  }
+
   private requirePlayer(playerId: string): Player {
     const player = this.players.get(playerId);
     if (!player) {
@@ -685,6 +711,7 @@ export class GameRoom {
       alive: player.alive,
       npc: player.npc,
       bot: player.bot,
+      gameMaster: player.gameMaster,
       connected: player.connected,
       role: this.phase === "ended" ? this.requireRole(player) : undefined
     };

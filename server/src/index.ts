@@ -28,8 +28,9 @@ io.on("connection", (socket) => {
   emitToSocket(socket.id);
 
   socket.on("joinGame", (payload) => handle(socket.id, () => room.join(socket.id, payload)));
-  socket.on("addBot", () => handle(socket.id, () => room.addBot()));
+  socket.on("addBot", () => handle(socket.id, () => room.addBot(socket.id)));
   socket.on("startGame", () => handle(socket.id, () => room.start(socket.id)));
+  socket.on("updateRoomSettings", (settings) => handle(socket.id, () => room.updateRoomSettings(socket.id, settings)));
   socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text)));
   socket.on("vote", (payload) => handle(socket.id, () => room.vote(socket.id, payload.targetId)));
   socket.on("divine", (payload) => handle(socket.id, () => room.divine(socket.id, payload.targetId)));

@@ -8,6 +8,7 @@ import type {
   GameEndPayload,
   PrivateState,
   PublicGameState,
+  RoomSettings,
   Role,
   ServerToClientEvents,
   ClientToServerEvents
@@ -80,12 +81,12 @@ const state = ref<PublicGameState>({
   phase: "waiting",
   day: 0,
   players: [
-    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true, bot: false },
-    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true, bot: false },
-    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true, bot: false },
-    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true, bot: false },
-    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true, bot: false },
-    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true, bot: false },
+    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
+    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
+    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
+    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
+    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
+    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
   ],
   timer: null,
   canStart: false,
@@ -98,6 +99,10 @@ const privateState = ref<PrivateState>({
   divineResults: [],
   sessionToken: null
 });
+const roomSettings = ref<RoomSettings>({
+  ...state.value.room,
+  durationSeconds: { ...state.value.room.durationSeconds }
+});
 
 const ticker = window.setInterval(() => {
   now.value = Date.now();
@@ -105,6 +110,10 @@ const ticker = window.setInterval(() => {
 
 socket.on("gameState", (nextState) => {
   state.value = nextState;
+  roomSettings.value = {
+    ...nextState.room,
+    durationSeconds: { ...nextState.room.durationSeconds }
+  };
 });
 socket.on("privateState", (nextState) => {
   privateState.value = nextState;
@@ -146,6 +155,7 @@ onBeforeUnmount(() => {
 });
 
 const me = computed(() => state.value.players.find((player) => player.id === privateState.value.playerId) ?? null);
+const isGameMaster = computed(() => me.value?.gameMaster === true);
 const livingTargets = computed(() => state.value.players.filter((player) => player.alive && player.id !== privateState.value.playerId));
 const voteTargets = computed(() => livingTargets.value.filter((player) => !player.npc));
 const divineTargets = computed(() => livingTargets.value);
@@ -194,6 +204,14 @@ function startGame() {
 function addBot() {
   error.value = "";
   socket.emit("addBot");
+}
+
+function updateRoomSettings() {
+  error.value = "";
+  socket.emit("updateRoomSettings", {
+    ...roomSettings.value,
+    durationSeconds: { ...roomSettings.value.durationSeconds }
+  });
 }
 
 function sendChat() {
@@ -254,6 +272,7 @@ const debugState = ref({
           <div>{{ player.name }}
             <small>
               {{ player.alive ? "生存" : "死亡" }}
+              {{ player.gameMaster ? " / GM" : "" }}
               {{ player.role ? ` / ${roleLabels[player.role]}` : "" }}
               {{ player.connected || player.npc ? "" : " / 離席" }}
             </small>
@@ -272,9 +291,40 @@ const debugState = ref({
     <aside class="command-panel">
 
       <div class="actions">
-        <section v-if="joined" class="start-panel">
-          <button :disabled="!joined || !state.canStart" @click="startGame">開始</button>
+        <section v-if="isGameMaster" class="start-panel">
+          <button :disabled="!state.canStart" @click="startGame">開始</button>
         </section>
+        <form v-if="isGameMaster && state.phase === 'waiting'" class="settings-panel" @submit.prevent="updateRoomSettings">
+          <label>
+            村名
+            <input v-model="roomSettings.roomName" maxlength="80" />
+          </label>
+          <label>
+            PR
+            <input v-model="roomSettings.pr" maxlength="160" />
+          </label>
+          <label>
+            定員（NPC込み）
+            <input v-model.number="roomSettings.playerLimit" type="number" min="4" max="20" />
+          </label>
+          <label>
+            昼の議論（秒）
+            <input v-model.number="roomSettings.durationSeconds.dayDiscussion" type="number" min="30" max="300" />
+          </label>
+          <label>
+            昼の投票（秒）
+            <input v-model.number="roomSettings.durationSeconds.dayVote" type="number" min="30" max="300" />
+          </label>
+          <label>
+            夜の議論（秒）
+            <input v-model.number="roomSettings.durationSeconds.nightDiscussion" type="number" min="30" max="300" />
+          </label>
+          <label>
+            夜の襲撃（秒）
+            <input v-model.number="roomSettings.durationSeconds.nightAttack" type="number" min="30" max="300" />
+          </label>
+          <button>設定を保存</button>
+        </form>
         <section v-if="!joined" class="join-panel">
           <label>
             プレイヤー名
@@ -381,7 +431,8 @@ const debugState = ref({
   <div class="dev-panel">
     <input type="checkbox" v-model="debugState.join"><label>参加状態</label>
     <button
-      :disabled="state.phase !== 'waiting' || state.players.length >= state.room.playerLimit - 1"
+      v-if="isGameMaster"
+      :disabled="state.phase !== 'waiting' || state.players.length >= state.room.playerLimit"
       @click="addBot"
     >
       Botを追加

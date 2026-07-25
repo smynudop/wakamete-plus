@@ -61,11 +61,37 @@ describe("GameRoom", () => {
     expect(room.getState().phase).toBe("waiting");
   });
 
+  it("grants room controls only to the first human player", () => {
+    const room = new GameRoom();
+    room.join("s1", "game-master");
+    room.join("s2", "player2");
+
+    expect(room.getState().players.find((player) => player.name === "game-master")?.gameMaster).toBe(true);
+    expect(room.getState().players.find((player) => player.name === "player2")?.gameMaster).toBe(false);
+    expect(() => room.addBot("s2")).toThrow("ゲームマスターだけが実行できます。");
+    expect(() => room.updateRoomSettings("s2", DEFAULT_ROOM_SETTINGS)).toThrow(
+      "ゲームマスターだけが実行できます。"
+    );
+
+    room.updateRoomSettings("s1", {
+      ...DEFAULT_ROOM_SETTINGS,
+      roomName: "変更後の村",
+      playerLimit: 6
+    });
+    expect(room.getState().room.roomName).toBe("変更後の村");
+
+    for (let index = 0; index < 3; index += 1) {
+      room.addBot("s1");
+    }
+    expect(() => room.start("s2")).toThrow("ゲームマスターだけが実行できます。");
+    expect(room.start("s1").state.phase).toBe("nightDiscussion");
+  });
+
   it("restores the same player and private state with a session token after the game starts", () => {
     const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => "session-player1");
     const joined = room.join("s1", { name: "player1", password: "return-secret" });
     for (let index = 0; index < 4; index += 1) {
-      room.addBot();
+      room.addBot("s1");
     }
     const started = room.start("s1");
     const originalPrivateState = started.privateStates.get("s1");
@@ -107,20 +133,20 @@ describe("GameRoom", () => {
     const room = new GameRoom();
     room.join("s1", "player1");
     for (let index = 0; index < 4; index += 1) {
-      room.addBot();
+      room.addBot("s1");
     }
 
     const bots = room.getState().players.filter((player) => player.bot);
     expect(bots).toHaveLength(4);
     expect(room.getState().canStart).toBe(true);
-    expect(() => room.addBot()).toThrow("参加枠は5人までです。");
+    expect(() => room.addBot("s1")).toThrow("参加枠は5人までです。");
   });
 
   it("makes bots act during each applicable phase", () => {
     const room = new GameRoom();
     room.join("s1", "player1");
     for (let index = 0; index < 4; index += 1) {
-      room.addBot();
+      room.addBot("s1");
     }
     room.start("s1");
 
