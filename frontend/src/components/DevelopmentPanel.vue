@@ -93,6 +93,7 @@ function update<Key extends keyof DevelopmentPreviewState>(
   padding: 12px;
   background: rgba(255, 253, 250, 0.96);
   box-shadow: 0 4px 20px rgba(29, 35, 42, 0.2);
+  color: black;
 }
 
 h2 {

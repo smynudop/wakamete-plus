@@ -17,7 +17,8 @@ import type {
 } from "@wakamete-plus/shared";
 import { DEFAULT_PLAYER_COLOR, PLAYER_COLORS } from "@wakamete-plus/shared";
 import type { DevelopmentPreviewState } from "./components/DevelopmentPanel.vue";
-
+import ActionPanel from "./components/ActionPanel.vue"
+import RoomSettingPanel from "./components/RoomSettingPanel.vue";
 const isDevelopment = import.meta.env.DEV;
 const DevelopmentPanel = isDevelopment
   ? defineAsyncComponent(() => import("./components/DevelopmentPanel.vue"))
@@ -357,7 +358,7 @@ watch(
 </script>
 
 <template>
-  <main class="app-shell">
+  <main class="app-shell" :class="[state.phase]">
 
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -386,8 +387,7 @@ watch(
     <template v-if="privateState.role" >
       <div class="bar">◆あなたの情報</div>
       <div class="role-box">
-        <span>あなたの役職</span>
-        <strong>{{ roleLabels[privateState.role] }}</strong>
+        <span>あなたの役職は【{{ roleLabels[privateState.role] }}】です。</span>
       </div>
     </template>
     <div class="bar">◆行動</div>
@@ -404,37 +404,10 @@ watch(
             Botを追加
           </button>
         </section>
-        <form v-if="isGameMaster && state.phase === 'waiting'" class="settings-panel" @submit.prevent="updateRoomSettings">
-          <label>
-            村名
-            <input v-model="roomSettings.roomName" maxlength="80" />
-          </label>
-          <label>
-            PR
-            <input v-model="roomSettings.pr" maxlength="160" />
-          </label>
-          <label>
-            定員（NPC込み）
-            <input v-model.number="roomSettings.playerLimit" type="number" min="4" max="20" />
-          </label>
-          <label>
-            昼の議論（秒）
-            <input v-model.number="roomSettings.durationSeconds.dayDiscussion" type="number" min="30" max="300" />
-          </label>
-          <label>
-            昼の投票（秒）
-            <input v-model.number="roomSettings.durationSeconds.dayVote" type="number" min="30" max="300" />
-          </label>
-          <label>
-            夜の議論（秒）
-            <input v-model.number="roomSettings.durationSeconds.nightDiscussion" type="number" min="30" max="300" />
-          </label>
-          <label>
-            夜の襲撃（秒）
-            <input v-model.number="roomSettings.durationSeconds.nightAttack" type="number" min="30" max="300" />
-          </label>
-          <button>設定を保存</button>
-        </form>
+        <room-setting-panel  
+          v-if="isGameMaster && state.phase === 'waiting'" 
+          v-model="roomSettings" 
+          @submit="updateRoomSettings"/>
         <section v-if="!joined" class="join-panel">
           <label>
             プレイヤー名
@@ -474,29 +447,30 @@ watch(
           <input type="text" v-model="chatText" :disabled="!canChat" maxlength="160" />
           <button :disabled="!canChat">発言</button>
         </form>
-        <div v-if="(state.phase === 'dayDiscussion' || state.phase === 'dayVote') && me?.alive" class="action-line">
-          <select v-model="selectedVote">
-            <option value="">投票先</option>
-            <option v-for="player in voteTargets" :key="player.id" :value="player.id">{{ player.name }}</option>
-          </select>
-          <button @click="vote">投票</button>
-        </div>
 
-        <div v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'seer' && me?.alive" class="action-line">
-          <select v-model="selectedDivine">
-            <option value="">占い先</option>
-            <option v-for="player in divineTargets" :key="player.id" :value="player.id">{{ player.name }}</option>
-          </select>
-          <button @click="divine">占う</button>
-        </div>
+        <action-panel 
+          v-if="(state.phase === 'dayDiscussion' || state.phase === 'dayVote') && me?.alive"
+          v-model="selectedVote" 
+          :targets="voteTargets" 
+          description-label="投票先" 
+          execute-label="投票" 
+          @execute="vote"/>
 
-        <div v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'werewolf' && me?.alive" class="action-line">
-          <select v-model="selectedAttack">
-            <option value="">襲撃先</option>
-            <option v-for="player in attackTargets" :key="player.id" :value="player.id">{{ player.name }}</option>
-          </select>
-          <button @click="attack">襲撃</button>
-        </div>
+        <action-panel 
+          v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'seer' && me?.alive" 
+          v-model="selectedDivine" 
+          :targets="divineTargets" 
+          description-label="占い先" 
+          execute-label="占う" 
+          @execute="divine"/>
+
+        <action-panel 
+          v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'werewolf' && me?.alive"
+          v-model="selectedAttack" 
+          :targets="attackTargets" 
+          description-label="襲撃先" 
+          execute-label="襲撃" 
+          @execute="attack"/>
       </div>
 
       <div v-if="privateState.divineResults.length" class="results">
@@ -518,19 +492,18 @@ watch(
         <div>
           <h1>{{ state.room.roomName }}</h1>
           <p>{{ state.room.pr }}</p>
-        </div>
-        <div class="phase">
-          <span>{{ phaseLabels[state.phase] }}</span>
-          <strong v-if="remainingSeconds !== null">{{ remainingSeconds }}s</strong>
+          <p></p>
         </div>
         <div class="status-row">
           <span>{{ state.day === 0 ? "開始前" : `${state.day}日目` }}</span>
+          <span>{{ phaseLabels[state.phase] }}</span>
+          <strong v-if="remainingSeconds !== null">{{ remainingSeconds }}s</strong>
         </div>
       </section>
       <div class="chat">
         <div class="messages">
           <p v-for="message in messages" :key="message.id" class="message" :class="message.channel">
-            <span>◆<strong>{{ message.senderName }}</strong>さん</span>
+            <span><span>◆</span><strong>{{ message.senderName }}</strong>さん</span>
             <span>「{{ message.text }}」</span>
           </p>
         </div>
