@@ -15,8 +15,16 @@ export const PLAYER_COLORS = [
 ] as const;
 export const DEFAULT_PLAYER_COLOR = PLAYER_COLORS[0];
 
-export type Role = "villager" | "seer" | "werewolf" | "madman";
-export type Team = "villagers" | "werewolves";
+export type Role =
+  | "villager"
+  | "seer"
+  | "werewolf"
+  | "madman"
+  | "medium"
+  | "hunter"
+  | "shared"
+  | "fox";
+export type Team = "villagers" | "werewolves" | "fox";
 export type GamePhase =
   | "waiting"
   | "nightDiscussion"
@@ -25,7 +33,7 @@ export type GamePhase =
   | "dayVote"
   | "ended";
 
-export type ChatChannel = "public" | "werewolf" | "monologue";
+export type ChatChannel = "public" | "werewolf" | "shared" | "monologue";
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 export interface RoomSettings {
@@ -77,12 +85,24 @@ export interface PublicGameState {
 
 export interface GameLogEntry {
   id: string;
+  kind: "event" | "chat";
   text: string;
   day: number;
   phase: GamePhase;
+  sentAt: number;
+  channel?: ChatChannel;
+  senderId?: string;
+  senderName?: string;
 }
 
 export interface DivineResult {
+  targetId: string;
+  targetName: string;
+  result: "human" | "werewolf";
+  day: number;
+}
+
+export interface MediumResult {
   targetId: string;
   targetName: string;
   result: "human" | "werewolf";
@@ -93,6 +113,9 @@ export interface PrivateState {
   playerId: string | null;
   role: Role | null;
   divineResults: DivineResult[];
+  mediumResults: MediumResult[];
+  sharedPlayerIds: string[];
+  log: GameLogEntry[];
   sessionToken: string | null;
 }
 
@@ -123,14 +146,14 @@ export interface ClientToServerEvents {
   sendChat: (payload: { text: string; channel: ChatChannel }) => void;
   vote: (payload: { targetId: string }) => void;
   divine: (payload: { targetId: string }) => void;
+  guard: (payload: { targetId: string }) => void;
   attack: (payload: { targetId: string }) => void;
 }
 
 export interface ServerToClientEvents {
   gameState: (state: PublicGameState) => void;
   privateState: (state: PrivateState) => void;
-  chatMessage: (message: ChatMessage) => void;
-  gameLog: (entry: GameLogEntry) => void;
+  logEntry: (entry: GameLogEntry) => void;
   phaseChanged: (state: PublicGameState) => void;
   actionError: (payload: { message: string }) => void;
   gameEnded: (payload: GameEndPayload) => void;

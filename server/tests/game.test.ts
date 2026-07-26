@@ -103,7 +103,12 @@ describe("GameRoom", () => {
 
     const restored = room.join("s6", { name: "", sessionToken: sessionToken! });
 
-    expect(restored.privateStates.get("s6")).toEqual(originalPrivateState);
+    expect(restored.privateStates.get("s6")).toEqual({
+      ...originalPrivateState,
+      log: expect.arrayContaining([
+        expect.objectContaining({ kind: "event", text: "player1 が復帰しました。" })
+      ])
+    });
     expect(restored.state.players.find((player) => player.id === originalPrivateState?.playerId)?.connected).toBe(true);
     expect(room.getPrivateState("s1").playerId).toBeNull();
   });
@@ -462,5 +467,60 @@ describe("GameRoom", () => {
     }
 
     expect(ended?.winner).toBe("werewolves");
+  });
+
+  it("restores a unified chronological chat and event log", () => {
+    const room = new GameRoom(() => 1_000);
+    const joined = room.join("s1", { name: "player1" });
+    room.sendChat("s1", "履歴に残る発言");
+    const token = joined.privateStates.get("s1")?.sessionToken;
+    room.disconnect("s1");
+
+    const restored = room.join("s2", { name: "", sessionToken: token ?? undefined });
+    const log = restored.privateStates.get("s2")?.log ?? [];
+
+    expect(log.map((entry) => entry.kind)).toEqual(["event", "chat", "event"]);
+    expect(log[1]).toEqual(expect.objectContaining({
+      senderName: "player1",
+      text: "履歴に残る発言"
+    }));
+  });
+
+  it("assigns and exposes all additional roles in a ten-player room", () => {
+    const room = new GameRoom();
+    room.join("s1", "player1");
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
+    for (let index = 0; index < 8; index += 1) {
+      room.addBot("s1");
+    }
+
+    const started = room.start("s1");
+    const roles = room.getDebugPlayersForTests().map((player) => player.role);
+    expect(roles).toEqual(expect.arrayContaining(["medium", "hunter", "shared", "fox"]));
+    expect(roles.filter((role) => role === "shared")).toHaveLength(2);
+
+    const sharedState = [...started.privateStates.values()].find((state) => state.role === "shared");
+    expect(sharedState?.sharedPlayerIds).toHaveLength(1);
+  });
+
+  it("kills a divined fox at dawn while foxes survive attacks", () => {
+    const room = new GameRoom();
+    room.join("s1", "player1");
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
+    for (let index = 0; index < 8; index += 1) {
+      room.addBot("s1");
+    }
+    const started = room.start("s1");
+    const seerSocket = socketForRole(started, "seer");
+    const werewolfSocket = socketForRole(started, "werewolf");
+    const foxId = playerIdForSocket(started, socketForRole(started, "fox"));
+    const firstVictim = room.getState().players.find((player) => player.name === FIRST_VICTIM_NAME)!;
+
+    room.divine(seerSocket, foxId);
+    room.attack(werewolfSocket, firstVictim.id);
+    room.advanceTimer();
+    room.advanceTimer();
+
+    expect(room.getState().players.find((player) => player.id === foxId)?.alive).toBe(false);
   });
 });

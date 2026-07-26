@@ -34,6 +34,7 @@ io.on("connection", (socket) => {
   socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text, payload.channel)));
   socket.on("vote", (payload) => handle(socket.id, () => room.vote(socket.id, payload.targetId)));
   socket.on("divine", (payload) => handle(socket.id, () => room.divine(socket.id, payload.targetId)));
+  socket.on("guard", (payload) => handle(socket.id, () => room.guard(socket.id, payload.targetId)));
   socket.on("attack", (payload) => handle(socket.id, () => room.attack(socket.id, payload.targetId)));
   socket.on("disconnect", () => {
     broadcast(room.disconnect(socket.id));
@@ -62,36 +63,52 @@ function broadcast(bundle: GameEventBundle): void {
     io.emit("phaseChanged", bundle.state);
   }
   for (const message of bundle.chats) {
+    const entry = {
+      ...message,
+      kind: "chat" as const
+    };
     if (message.channel === "monologue") {
       const senderSocketId = [...bundle.privateStates.entries()]
         .find(([, privateState]) => privateState.playerId === message.senderId)?.[0];
       if (senderSocketId) {
-        io.to(senderSocketId).emit("chatMessage", message);
+        io.to(senderSocketId).emit("logEntry", entry);
       }
     } else if (message.channel === "werewolf") {
       for (const [socketId, privateState] of bundle.privateStates) {
         if (privateState.role === "werewolf") {
-          io.to(socketId).emit("chatMessage", message);
+          io.to(socketId).emit("logEntry", entry);
+        }
+      }
+    } else if (message.channel === "shared") {
+      for (const [socketId, privateState] of bundle.privateStates) {
+        if (privateState.role === "shared") {
+          io.to(socketId).emit("logEntry", entry);
         }
       }
     } else {
-      io.emit("chatMessage", message);
+      io.emit("logEntry", entry);
     }
   }
   for (const event of bundle.events) {
     if (event.audience === "public") {
-      io.emit("gameLog", event.entry);
+      io.emit("logEntry", event.entry);
     } else if (event.audience === "werewolves") {
       for (const [socketId, privateState] of bundle.privateStates) {
         if (privateState.role === "werewolf") {
-          io.to(socketId).emit("gameLog", event.entry);
+          io.to(socketId).emit("logEntry", event.entry);
+        }
+      }
+    } else if (event.audience === "shared") {
+      for (const [socketId, privateState] of bundle.privateStates) {
+        if (privateState.role === "shared") {
+          io.to(socketId).emit("logEntry", event.entry);
         }
       }
     } else {
       const recipientSocketId = [...bundle.privateStates.entries()]
         .find(([, privateState]) => privateState.playerId === event.playerId)?.[0];
       if (recipientSocketId) {
-        io.to(recipientSocketId).emit("gameLog", event.entry);
+        io.to(recipientSocketId).emit("logEntry", event.entry);
       }
     }
   }

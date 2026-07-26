@@ -5,6 +5,7 @@ import {
   type ChatChannel,
   type ChatMessage,
   type DivineResult,
+  type MediumResult,
   type GameEndPayload,
   type GameLogEntry,
   type GamePhase,
@@ -83,6 +84,7 @@ interface Player {
   sessionToken: string | null;
   role: Role | null;
   divineResults: DivineResult[];
+  mediumResults: MediumResult[];
 }
 
 interface PhaseActionResult {
@@ -101,7 +103,7 @@ export interface GameEventBundle {
 
 export interface GameLogDispatch {
   entry: GameLogEntry;
-  audience: "public" | "werewolves" | "private";
+  audience: "public" | "werewolves" | "shared" | "private";
   playerId?: string;
 }
 
@@ -109,7 +111,11 @@ const ROLE_LABELS: Record<Role, string> = {
   villager: "村人",
   seer: "占い師",
   werewolf: "人狼",
-  madman: "狂人"
+  madman: "狂人",
+  medium: "霊能者",
+  hunter: "狩人",
+  shared: "共有者",
+  fox: "妖狐"
 };
 
 const PHASE_LABELS: Record<GamePhase, string> = {
@@ -129,12 +135,15 @@ export class GameRoom {
   private timer: PhaseTimer | null = null;
   private votes = new Map<string, string>();
   private attackTargetId: string | null = null;
+  private guardTargetId: string | null = null;
+  private divinedFoxIds = new Set<string>();
   private chatSeq = 0;
   private logSeq = 0;
   private playerSeq = 0;
   private botSeq = 0;
   private botActions = new Set<string>();
   private log: string[] = [];
+  private history: { entry: GameLogEntry; audience: GameLogDispatch["audience"]; playerId?: string }[] = [];
   private pendingEvents: GameLogDispatch[] = [];
   private winner: Team | null = null;
   private postGameChatEndsAt: number | null = null;
@@ -203,7 +212,8 @@ export class GameRoom {
       connected: true,
       sessionToken: this.createSessionToken(),
       role: null,
-      divineResults: []
+      divineResults: [],
+      mediumResults: []
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(socketId, player.id);
@@ -235,7 +245,8 @@ export class GameRoom {
       connected: true,
       sessionToken: null,
       role: null,
-      divineResults: []
+      divineResults: [],
+      mediumResults: []
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(botSocketId, player.id);
@@ -309,6 +320,12 @@ export class GameRoom {
       ) {
         channel = "werewolf";
       } else if (
+        this.phase === "nightDiscussion"
+        && requestedChannel === "shared"
+        && player.role === "shared"
+      ) {
+        channel = "shared";
+      } else if (
         (this.phase === "nightDiscussion" || this.phase === "nightAttack")
         && requestedChannel === "monologue"
       ) {
@@ -328,6 +345,7 @@ export class GameRoom {
       day: this.day,
       phase: this.phase
     };
+    this.storeChat(message);
     return { ...this.bundle(false, null), chats: [message] };
   }
 
@@ -367,11 +385,31 @@ export class GameRoom {
       day: this.day
     };
     seer.divineResults.push(result);
+    if (target.role === "fox") {
+      this.divinedFoxIds.add(target.id);
+    }
     this.record(
       `${seer.name} が ${target.name} を占いました（${result.result === "werewolf" ? "人狼" : "人間"}）。`,
       "private",
       seer.id
     );
+    return this.bundle(false, null);
+  }
+
+  guard(socketId: string, targetId: string): GameEventBundle {
+    const hunter = this.requireAliveSocketPlayer(socketId);
+    if (this.phase !== "nightDiscussion" && this.phase !== "nightAttack") {
+      throw new Error("護衛は夜の議論・襲撃中に行えます。");
+    }
+    if (hunter.role !== "hunter") {
+      throw new Error("狩人だけが護衛できます。");
+    }
+    const target = this.requireAlivePlayer(targetId);
+    if (hunter.id === target.id) {
+      throw new Error("自分は護衛できません。");
+    }
+    this.guardTargetId = target.id;
+    this.record(`${hunter.name} が ${target.name} を護衛しました。`, "private", hunter.id);
     return this.bundle(false, null);
   }
 
@@ -470,6 +508,13 @@ export class GameRoom {
       playerId: player?.id ?? null,
       role: player?.role ?? null,
       divineResults: player?.divineResults ?? [],
+      mediumResults: player?.mediumResults ?? [],
+      sharedPlayerIds: player?.role === "shared"
+        ? [...this.players.values()]
+            .filter((candidate) => candidate.role === "shared" && candidate.id !== player.id)
+            .map((candidate) => candidate.id)
+        : [],
+      log: player ? this.visibleHistory(player) : this.publicHistory(),
       sessionToken: player?.sessionToken ?? null
     };
   }
@@ -546,6 +591,14 @@ export class GameRoom {
     const executed = this.requirePlayer(this.pick(candidates));
     executed.alive = false;
     this.record(`${executed.name} が処刑されました。`, "public");
+    for (const medium of this.livingPlayers().filter((player) => player.role === "medium")) {
+      medium.mediumResults.push({
+        targetId: executed.id,
+        targetName: executed.name,
+        result: executed.role === "werewolf" ? "werewolf" : "human",
+        day: this.day
+      });
+    }
   }
 
   private resolveAttack(): void {
@@ -558,24 +611,27 @@ export class GameRoom {
       target = this.pick(candidates);
     }
     this.attackTargetId = null;
-    if (!target) {
-      return;
+    if (target && target.role !== "fox" && target.id !== this.guardTargetId) {
+      target.alive = false;
+      this.record(`${target.name} が襲撃されました。`, "public");
     }
-    target.alive = false;
-    this.record(`${target.name} が襲撃されました。`, "public");
+    for (const foxId of this.divinedFoxIds) {
+      const fox = this.players.get(foxId);
+      if (fox?.alive) {
+        fox.alive = false;
+        this.record(`${fox.name} が死亡しました。`, "public");
+      }
+    }
+    this.divinedFoxIds.clear();
+    this.guardTargetId = null;
   }
 
   private checkWinner(): Team | null {
     const living = this.livingPlayers();
     const werewolves = living.filter((player) => player.role === "werewolf").length;
-    const humans = living.length - werewolves;
-    if (werewolves === 0) {
-      return "villagers";
-    }
-    if (werewolves >= humans) {
-      return "werewolves";
-    }
-    return null;
+    const humans = living.filter((player) => player.role !== "werewolf" && player.role !== "fox").length;
+    const baseWinner = werewolves === 0 ? "villagers" : werewolves >= humans ? "werewolves" : null;
+    return baseWinner && living.some((player) => player.role === "fox") ? "fox" : baseWinner;
   }
 
   private endGame(winner: Team): PhaseActionResult {
@@ -583,7 +639,8 @@ export class GameRoom {
     this.phase = "ended";
     this.timer = null;
     this.postGameChatEndsAt = this.now() + POST_GAME_CHAT_DURATION_MS;
-    this.record(`${winner === "villagers" ? "村人" : "人狼"}陣営の勝利です。`, "public");
+    const winnerLabel = winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐";
+    this.record(`${winnerLabel}陣営の勝利です。`, "public");
     return {
       phaseChanged: true,
       gameEnded: {
@@ -609,6 +666,7 @@ export class GameRoom {
     }
     if (phase === "nightDiscussion") {
       this.attackTargetId = null;
+      this.guardTargetId = null;
     }
     const startedAt = this.now();
     this.timer = {
@@ -632,7 +690,8 @@ export class GameRoom {
       connected: false,
       sessionToken: null,
       role: null,
-      divineResults: []
+      divineResults: [],
+      mediumResults: []
     };
     this.players.set(firstVictim.id, firstVictim);
   }
@@ -644,9 +703,21 @@ export class GameRoom {
     }
 
     const humans = this.shuffle(this.humanPlayers());
-    const humanRoles: Role[] = ["werewolf", "madman", "seer", "villager", "villager"];
-    if (humans.length !== humanRoles.length) {
-      throw new Error("役職を割り当てる人数がそろっていません。");
+    const humanRoles: Role[] = ["werewolf", "madman", "seer"];
+    if (humans.length >= 6) {
+      humanRoles.push("medium");
+    }
+    if (humans.length >= 7) {
+      humanRoles.push("hunter");
+    }
+    if (humans.length >= 8) {
+      humanRoles.push("shared", "shared");
+    }
+    if (humans.length >= 9) {
+      humanRoles.push("fox");
+    }
+    while (humanRoles.length < humans.length) {
+      humanRoles.push("villager");
     }
     humans.forEach((player, index) => {
       player.role = humanRoles[index]!;
@@ -777,19 +848,62 @@ export class GameRoom {
     playerId?: string
   ): void {
     this.log.push(text);
-    if (!audience) {
-      return;
-    }
+    const effectiveAudience = audience ?? "public";
+    const entry: GameLogEntry = {
+      id: `e${++this.logSeq}`,
+      kind: "event",
+      text,
+      day: this.day,
+      phase: this.phase,
+      sentAt: this.now()
+    };
+    this.history.push({ entry, audience: effectiveAudience, playerId });
     this.pendingEvents.push({
-      entry: {
-        id: `e${++this.logSeq}`,
-        text,
-        day: this.day,
-        phase: this.phase
-      },
-      audience,
+      entry,
+      audience: effectiveAudience,
       playerId
     });
+  }
+
+  private storeChat(message: ChatMessage): void {
+    const audience: GameLogDispatch["audience"] =
+      message.channel === "werewolf"
+        ? "werewolves"
+        : message.channel === "shared"
+          ? "shared"
+        : message.channel === "monologue"
+          ? "private"
+          : "public";
+    this.history.push({
+      entry: {
+        id: message.id,
+        kind: "chat",
+        text: message.text,
+        day: message.day,
+        phase: message.phase,
+        sentAt: message.sentAt,
+        channel: message.channel,
+        senderId: message.senderId,
+        senderName: message.senderName
+      },
+      audience,
+      playerId: message.channel === "monologue" ? message.senderId : undefined
+    });
+  }
+
+  private publicHistory(): GameLogEntry[] {
+    return this.history.filter((item) => item.audience === "public").map((item) => item.entry);
+  }
+
+  private visibleHistory(player: Player): GameLogEntry[] {
+    return this.history
+      .filter((item) =>
+        item.audience === "public"
+        || item.playerId === player.id
+        || (item.audience === "werewolves" && player.role === "werewolf")
+        || (item.audience === "shared" && player.role === "shared")
+      )
+      .map((item) => item.entry);
   }
 
   private socketIdForPlayer(playerId: string): string {

@@ -4,7 +4,6 @@ import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
   ChatChannel,
-  ChatMessage,
   DivineResult,
   GameEndPayload,
   GameLogEntry,
@@ -22,17 +21,13 @@ import JoinPanel from "./components/JoinPanel.vue";
 import TalkPanel from "./components/TalkPanel.vue";
 import type { JoinState } from "./components/JoinPanel.vue";
 import RoomSettingPanel from "./components/RoomSettingPanel.vue";
+import { roleLabels, roleDescriptions } from "./resource";
 const isDevelopment = import.meta.env.DEV;
 const DevelopmentPanel = isDevelopment
   ? defineAsyncComponent(() => import("./components/DevelopmentPanel.vue"))
   : null;
 
-const roleLabels: Record<Role, string> = {
-  villager: "村人",
-  seer: "占い師",
-  werewolf: "人狼",
-  madman: "狂人"
-};
+
 
 const phaseLabels: Record<PublicGameState["phase"], string> = {
   waiting: "待機中",
@@ -56,31 +51,10 @@ const chatChannel = ref<ChatChannel>("public");
 const selectedVote = ref("");
 const selectedDivine = ref("");
 const selectedAttack = ref("");
+const selectedGuard = ref("");
 const error = ref("");
-const messages = ref<ChatMessage[]>([
-  {
-    id: "1",
-    channel: "public",
-    day: 1,
-    phase: "dayDiscussion",
-    senderId: "test",
-    senderName: "初日犠牲者",
-    sentAt: 123,
-    text: "aaa"
-  },
-  {
-    id: "2",
-    channel: "public",
-    day: 1,
-    phase: "dayDiscussion",
-    senderId: "test",
-    senderName: "ゲームマスター",
-    sentAt: 123,
-    text: "初日犠牲者さんこんこん"
-  }
-]);
+const logEntries = ref<GameLogEntry[]>([]);
 const gameEnd = ref<GameEndPayload | null>(null);
-const events = ref<GameLogEntry[]>([]);
 const now = ref(Date.now());
 const state = ref<PublicGameState>({
   room: {
@@ -112,6 +86,9 @@ const privateState = ref<PrivateState>({
   playerId: null,
   role: null,
   divineResults: [],
+  mediumResults: [],
+  sharedPlayerIds: [],
+  log: [],
   sessionToken: null
 });
 const roomSettings = ref<RoomSettings>({
@@ -148,23 +125,20 @@ socket.on("privateState", (nextState) => {
     return;
   }
   privateState.value = nextState;
+  logEntries.value = nextState.log;
   if (nextState.sessionToken) {
     error.value = "";
     joinState.value.sessionToken = nextState.sessionToken;
     localStorage.setItem("wakamete:sessionToken", nextState.sessionToken);
   }
 });
-socket.on("chatMessage", (message) => {
+socket.on("logEntry", (entry) => {
   if (developmentPreview.value.enabled) {
     return;
   }
-  messages.value.push(message);
-});
-socket.on("gameLog", (entry) => {
-  if (developmentPreview.value.enabled) {
-    return;
+  if (!logEntries.value.some((candidate) => candidate.id === entry.id)) {
+    logEntries.value.push(entry);
   }
-  events.value.push(entry);
 });
 socket.on("phaseChanged", () => {
   if (developmentPreview.value.enabled) {
@@ -205,6 +179,10 @@ const isGameMaster = computed(() => me.value?.gameMaster === true);
 const livingTargets = computed(() => state.value.players.filter((player) => player.alive && player.id !== privateState.value.playerId));
 const voteTargets = computed(() => livingTargets.value.filter((player) => !player.npc));
 const divineTargets = computed(() => livingTargets.value);
+const guardTargets = computed(() => livingTargets.value);
+const sharedPlayers = computed(() =>
+  state.value.players.filter((player) => privateState.value.sharedPlayerIds.includes(player.id))
+);
 const attackTargets = computed(() => {
   if (state.value.day === 1) {
     return state.value.players.filter((player) => player.name === "初日犠牲者" && player.alive);
@@ -238,6 +216,11 @@ const chatChannelOptions = computed<{ value: ChatChannel; label: string }[]>(() 
           { value: "werewolf", label: "人狼の議論" },
           { value: "monologue", label: "独り言" }
         ]
+      : privateState.value.role === "shared"
+        ? [
+            { value: "shared", label: "共有者の議論" },
+            { value: "monologue", label: "独り言" }
+          ]
       : [{ value: "monologue", label: "独り言" }];
   }
   if (state.value.phase === "nightAttack") {
@@ -310,6 +293,14 @@ function attack() {
   socket.emit("attack", { targetId: selectedAttack.value });
 }
 
+function guard() {
+  if (!selectedGuard.value) {
+    return;
+  }
+  error.value = "";
+  socket.emit("guard", { targetId: selectedGuard.value });
+}
+
 function formatDivine(result: DivineResult) {
   return `${result.day}日目: ${result.targetName} は ${result.result === "werewolf" ? "人狼" : "人間"}`;
 }
@@ -347,6 +338,9 @@ watch(
       playerId: preview.joined ? previewPlayerId : null,
       role: preview.joined ? preview.role : null,
       sessionToken: null,
+      mediumResults: [],
+      sharedPlayerIds: [],
+      log: [],
       divineResults: preview.hasDivineResult
         ? [{ targetId: "3", targetName: "荒木比奈", result: "human", day: 1 }]
         : []
@@ -370,7 +364,7 @@ watch(
       <ul class="players">
         <li v-for="player in state.players" :key="player.id" :class="{ dead: !player.alive }">
           <div class="icon" :style="{ backgroundColor: player.color }">
-            <img :src="`${player.name}.png`" />
+            <img :src="player.alive ? `alive1.gif` : `grave.gif`" />
           </div>
           <div>{{ player.name }}
             <small>
@@ -386,12 +380,22 @@ watch(
     <template v-if="privateState.role" >
       <div class="bar">◆あなたの情報</div>
       <div class="role-box">
-        <span>あなたの役職は【{{ roleLabels[privateState.role] }}】です。</span>
+        <div>あなたの役職は【{{ roleLabels[privateState.role] }}】です。</div>
+        <div>【能力】{{ roleDescriptions[privateState.role] }}</div>
         <div v-if="privateState.divineResults.length" class="results">
           <p v-for="result in privateState.divineResults" :key="`${result.day}-${result.targetId}`">
             【能力発動】{{ formatDivine(result) }}
           </p>
         </div>
+        <div v-if="privateState.mediumResults.length" class="results">
+          <p v-for="result in privateState.mediumResults" :key="`${result.day}-${result.targetId}`">
+            【霊能結果】{{ result.day }}日目: {{ result.targetName }} は
+            {{ result.result === "werewolf" ? "人狼" : "人間" }}
+          </p>
+        </div>
+        <p v-if="privateState.role === 'shared'">
+          【共有者】{{ sharedPlayers.map((player) => player.name).join("、") }}
+        </p>
       </div>
 
     </template>
@@ -444,6 +448,13 @@ watch(
           description-label="襲撃先" 
           execute-label="襲撃" 
           @execute="attack"/>
+        <action-panel
+          v-if="(state.phase === 'nightDiscussion' || state.phase === 'nightAttack') && privateState.role === 'hunter' && me?.alive"
+          v-model="selectedGuard"
+          :targets="guardTargets"
+          description-label="護衛先"
+          execute-label="護衛"
+          @execute="guard"/>
       </div>
 
 
@@ -452,10 +463,6 @@ watch(
     <div class="bar">◆出来事</div>
 
     <section class="main-panel">
-      <div v-if="events.length" class="event-log">
-        <p v-for="event in events" :key="event.id">{{ event.text }}</p>
-      </div>
-    
       <section class="top-bar">
         <div>
           <h1>{{ state.room.roomName }}</h1>
@@ -470,16 +477,23 @@ watch(
       </section>
       <div class="chat">
         <div class="messages">
-          <p v-for="message in messages" :key="message.id" class="message" :class="message.channel">
-            <span><span>◆</span><strong>{{ message.senderName }}</strong>さん</span>
-            <span>「{{ message.text }}」</span>
+          <p
+            v-for="entry in logEntries"
+            :key="entry.id"
+            :class="entry.kind === 'chat' ? ['message', entry.channel] : 'event-entry'"
+          >
+            <template v-if="entry.kind === 'chat'">
+              <span><span>◆</span><strong>{{ entry.senderName }}</strong>さん</span>
+              <span>「{{ entry.text }}」</span>
+            </template>
+            <template v-else>{{ entry.text }}</template>
           </p>
         </div>
       </div>
     </section>
 
     <section v-if="gameEnd" class="end-panel">
-      <h2>{{ gameEnd.winner === "villagers" ? "村人陣営" : "人狼陣営" }}の勝利</h2>
+      <h2>{{ gameEnd.winner === "villagers" ? "村人陣営" : gameEnd.winner === "werewolves" ? "人狼陣営" : "妖狐陣営" }}の勝利</h2>
       <div class="end-grid">
         <p v-for="player in gameEnd.players" :key="player.id">
           {{ player.name }} ({{ player.handleName }}): {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
