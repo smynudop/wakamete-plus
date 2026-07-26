@@ -10,3 +10,4 @@
 
 ## CSS
 * padding/margin/gapなどの指定は `rem`/`em` を優先的に使用する。
+* 局所的なcssはvueファイル内にscopedで記述し、グローバルなstyle.cssは最低限に保つ。

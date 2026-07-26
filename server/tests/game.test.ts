@@ -490,8 +490,8 @@ describe("GameRoom", () => {
   it("assigns and exposes all additional roles in a ten-player room", () => {
     const room = new GameRoom();
     room.create("s1", { name: "player1" });
-    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
-    for (let index = 0; index < 8; index += 1) {
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });
+    for (let index = 0; index < 15; index += 1) {
       room.addBot("s1");
     }
 
@@ -507,8 +507,8 @@ describe("GameRoom", () => {
   it("kills a divined fox at dawn while foxes survive attacks", () => {
     const room = new GameRoom();
     room.create("s1", { name: "player1" });
-    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
-    for (let index = 0; index < 8; index += 1) {
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 13 });
+    for (let index = 0; index < 11; index += 1) {
       room.addBot("s1");
     }
     const started = room.start("s1");

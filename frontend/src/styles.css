@@ -12,12 +12,21 @@
 body {
   margin: 0;
   background-color: #f3f3f3;
+  min-height: 100vh;
 }
 body:has(main.nightDiscussion),
 body:has(main.nightAttack)
 {
   background: #1d1c20;
   color: rgb(231, 231, 231);
+}
+
+#app{
+  min-height: 100vh;
+}
+
+.wakamete-back{
+  background: #fae4ac;
 }
 
 button,
@@ -301,26 +310,7 @@ body {
   margin: 0;
 }
 
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid #c8c0b4;
-  background: #fffdf9;
-}
 
-.site-header nav {
-  display: flex;
-  gap: 1rem;
-}
-
-.site-title {
-  color: inherit;
-  font-weight: 700;
-  text-decoration: none;
-}
 
 .page-shell {
   width: min(70rem, calc(100% - 2rem));
