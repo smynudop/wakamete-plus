@@ -64,3 +64,27 @@ void fetch("/api/role-sets")
   </main>
 </template>
 
+<style scoped>
+.role-table-wrap {
+  overflow-x: auto;
+}
+
+.role-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fffdf9;
+}
+
+.role-table th,
+.role-table td {
+  border: 1px solid #c8c0b4;
+  padding: 0.3rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.role-table thead th,
+.role-table tbody th {
+  background: #f1ece5;
+}
+</style>

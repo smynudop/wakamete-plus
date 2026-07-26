@@ -62,6 +62,7 @@ const selectedAttack = ref("");
 const selectedGuard = ref("");
 const error = ref("");
 const logEntries = ref<GameLogEntry[]>([]);
+const displayLogEntries = computed(() => logEntries.value.toReversed())
 const gameEnd = ref<GameEndPayload | null>(null);
 const now = ref(Date.now());
 const state = ref<PublicGameState>({
@@ -544,7 +545,7 @@ watch(
       <div class="chat">
         <div class="messages">
           <p
-            v-for="entry in logEntries"
+            v-for="entry in displayLogEntries"
             :key="entry.id"
             :class="entry.kind === 'chat' ? ['message', entry.channel] : 'event-entry'"
           >
