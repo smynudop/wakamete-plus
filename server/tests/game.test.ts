@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIRST_VICTIM_NAME, type Role } from "@wakamete-plus/shared";
 import { DEFAULT_ROOM_SETTINGS, GameRoom } from "../src/game.js";
+import { ROLE_SETS } from "../src/role-sets.js";
 
 function createStartedRoom() {
   let now = 1_000;
@@ -326,15 +327,14 @@ describe("GameRoom", () => {
     expect(publicTexts.some((text) => text === `${target.name} が処刑されました。`)).toBe(true);
   });
 
-  it("assigns the fixed roles and keeps the first victim from being a werewolf", () => {
+  it("assigns the configured roles including the first victim", () => {
     const { room, startBundle } = createStartedRoom();
     const roles = room.getDebugPlayersForTests().map((player) => player.role);
     const firstVictim = room.getDebugPlayersForTests().find((player) => player.name === FIRST_VICTIM_NAME);
 
-    expect(roles.filter((role) => role === "werewolf")).toHaveLength(1);
-    expect(roles.filter((role) => role === "madman")).toHaveLength(1);
-    expect(roles.filter((role) => role === "seer")).toHaveLength(1);
-    expect(roles.filter((role) => role === "villager")).toHaveLength(3);
+    for (const [role, count] of Object.entries(ROLE_SETS[6]!)) {
+      expect(roles.filter((assignedRole) => assignedRole === role)).toHaveLength(count);
+    }
     expect(firstVictim?.role).toBe("villager");
     expect(room.getState().players).toHaveLength(6);
     expect(firstVictim?.alive).toBe(true);
@@ -487,7 +487,7 @@ describe("GameRoom", () => {
     }));
   });
 
-  it("assigns and exposes all additional roles in a ten-player room", () => {
+  it("assigns and exposes all additional roles in a configured expanded room", () => {
     const room = new GameRoom();
     room.create("s1", { name: "player1" });
     room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });

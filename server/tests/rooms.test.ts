@@ -46,8 +46,8 @@ describe("RoomManager", () => {
         id: "room-a",
         roomName: "一番村",
         pr: DEFAULT_ROOM_SETTINGS.pr,
-        playerCount: 2,
-        playerLimit: 5,
+        playerCount: 3,
+        playerLimit: 6,
         phase: "waiting",
         day: 0,
         status: "waiting"
@@ -55,7 +55,7 @@ describe("RoomManager", () => {
       expect.objectContaining({
         id: "room-b",
         roomName: "二番村",
-        playerCount: 1,
+        playerCount: 2,
         status: "waiting"
       })
     ]);

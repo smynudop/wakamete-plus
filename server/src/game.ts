@@ -20,7 +20,7 @@ import {
   type VoteSummary
 } from "@wakamete-plus/shared";
 import { randomUUID } from "node:crypto";
-import { rolesForPlayerCount } from "./role-sets.js";
+import { ROLE_SET_PLAYER_COUNTS, rolesForHumanPlayers } from "./role-sets.js";
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   roomName: "【モバマス】ほげほげふがふが村",
@@ -38,8 +38,8 @@ export const PHASE_DURATIONS_SECONDS = DEFAULT_ROOM_SETTINGS.durationSeconds;
 
 const MIN_DURATION_SECONDS = 30;
 const MAX_DURATION_SECONDS = 300;
-const MIN_PLAYER_LIMIT = 4;
-const MAX_PLAYER_LIMIT = 20;
+const MIN_PLAYER_LIMIT = ROLE_SET_PLAYER_COUNTS[0] ?? 4;
+const MAX_PLAYER_LIMIT = ROLE_SET_PLAYER_COUNTS.at(-1) ?? 20;
 const POST_GAME_CHAT_DURATION_MS = 5 * 60 * 1000;
 
 function normalizeRoomSettings(settings: RoomSettings): RoomSettings {
@@ -718,7 +718,7 @@ export class GameRoom {
     }
 
     const humans = this.shuffle(this.humanPlayers());
-    const humanRoles = rolesForPlayerCount(humans.length);
+    const humanRoles = rolesForHumanPlayers(humans.length + 1);
     humans.forEach((player, index) => {
       player.role = humanRoles[index]!;
     });

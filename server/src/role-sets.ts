@@ -30,3 +30,16 @@ export function rolesForPlayerCount(playerCount: number): Role[] {
     .flatMap(([role, count]) => Array<Role>(count).fill(role));
 }
 
+export function rolesForHumanPlayers(totalPlayerCount: number): Role[] {
+  const roles = rolesForPlayerCount(totalPlayerCount);
+  const firstVillagerIndex = roles.indexOf("villager");
+  if (firstVillagerIndex === -1) {
+    throw new Error(`${totalPlayerCount}人用の配役には初日犠牲者用の村人が必要です。`);
+  }
+  roles.splice(firstVillagerIndex, 1);
+  return roles;
+}
+
+export const ROLE_SET_PLAYER_COUNTS = Object.keys(ROLE_SETS)
+  .map(Number)
+  .sort((left, right) => left - right);

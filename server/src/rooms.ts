@@ -76,8 +76,8 @@ export class RoomManager {
       id,
       roomName: state.room.roomName,
       pr: state.room.pr,
-      playerCount: state.players.filter((player) => !player.npc).length,
-      playerLimit: state.room.playerLimit - 1,
+      playerCount: state.players.length,
+      playerLimit: state.room.playerLimit,
       phase: state.phase,
       day: state.day,
       status: state.phase === "waiting" ? "waiting" : state.phase === "ended" ? "ended" : "playing"

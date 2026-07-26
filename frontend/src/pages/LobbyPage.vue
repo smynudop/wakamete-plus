@@ -14,6 +14,7 @@ const router = useRouter();
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
 const rooms = ref<LobbyRoom[]>([]);
 const error = ref("");
+const availablePlayerCounts = ref<number[]>([]);
 const creatorName = ref(localStorage.getItem("wakamete:name") ?? "");
 const settings = ref<RoomSettings>({
   roomName: "新しい村",
@@ -35,6 +36,23 @@ const phaseLabels = {
   dayVote: "昼の投票",
   ended: "終了"
 } as const;
+
+void fetch("/api/role-sets")
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error("配役表を取得できませんでした。");
+    }
+    return response.json() as Promise<Record<string, unknown>>;
+  })
+  .then((roleSets) => {
+    availablePlayerCounts.value = Object.keys(roleSets).map(Number).sort((left, right) => left - right);
+    if (!availablePlayerCounts.value.includes(settings.value.playerLimit)) {
+      settings.value.playerLimit = availablePlayerCounts.value[0] ?? settings.value.playerLimit;
+    }
+  })
+  .catch((cause: unknown) => {
+    error.value = cause instanceof Error ? cause.message : "配役表を取得できませんでした。";
+  });
 
 socket.on("roomList", (nextRooms) => {
   rooms.value = nextRooms;
@@ -108,7 +126,12 @@ function createRoom() {
         <label>作成者名<input v-model="creatorName" maxlength="24" required /></label>
         <label>村名<input v-model="settings.roomName" maxlength="80" required /></label>
         <label>PR文<textarea v-model="settings.pr" rows="3" maxlength="240" required /></label>
-        <label>定員（初日犠牲者を含む）<input v-model.number="settings.playerLimit" type="number" min="4" max="20" /></label>
+        <label>
+          定員（初日犠牲者を含む）
+          <select v-model.number="settings.playerLimit">
+            <option v-for="count in availablePlayerCounts" :key="count" :value="count">{{ count }}人</option>
+          </select>
+        </label>
         <fieldset class="duration-fields">
           <legend>各フェーズの時間</legend>
           <label>昼の議論（秒）<input v-model.number="settings.durationSeconds.dayDiscussion" type="number" min="30" max="300" /></label>

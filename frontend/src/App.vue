@@ -9,6 +9,7 @@ import { RouterLink, RouterView } from "vue-router";
     <nav>
       <RouterLink to="/">トップ</RouterLink>
       <RouterLink to="/lobby">ロビー</RouterLink>
+      <RouterLink to="/role-sets">配役表</RouterLink>
     </nav>
   </aside>
   <RouterView />
