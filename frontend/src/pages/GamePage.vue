@@ -383,7 +383,7 @@ watch(
       <ul class="players">
         <li v-for="player in state.players" :key="player.id" :class="{ dead: !player.alive }">
           <div class="icon" :style="{ backgroundColor: player.color }">
-            <img :src="player.alive ? `alive1.gif` : `grave.gif`" />
+            <img :src="player.alive ? `/alive1.gif` : `/grave.gif`" />
           </div>
           <div>{{ player.name }}
             <small>
