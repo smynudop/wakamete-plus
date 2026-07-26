@@ -20,6 +20,7 @@ import {
   type VoteSummary
 } from "@wakamete-plus/shared";
 import { randomUUID } from "node:crypto";
+import { rolesForPlayerCount } from "./role-sets.js";
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   roomName: "【モバマス】ほげほげふがふが村",
@@ -717,22 +718,7 @@ export class GameRoom {
     }
 
     const humans = this.shuffle(this.humanPlayers());
-    const humanRoles: Role[] = ["werewolf", "madman", "seer"];
-    if (humans.length >= 6) {
-      humanRoles.push("medium");
-    }
-    if (humans.length >= 7) {
-      humanRoles.push("hunter");
-    }
-    if (humans.length >= 8) {
-      humanRoles.push("shared", "shared");
-    }
-    if (humans.length >= 9) {
-      humanRoles.push("fox");
-    }
-    while (humanRoles.length < humans.length) {
-      humanRoles.push("villager");
-    }
+    const humanRoles = rolesForPlayerCount(humans.length);
     humans.forEach((player, index) => {
       player.role = humanRoles[index]!;
     });
