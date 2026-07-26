@@ -2,6 +2,7 @@ import {
   DEFAULT_PLAYER_COLOR,
   FIRST_VICTIM_NAME,
   PLAYER_COLORS,
+  ROLE_PROPERTIES,
   type ChatChannel,
   type ChatMessage,
   type DivineResult,
@@ -411,11 +412,11 @@ export class GameRoom {
     const result: DivineResult = {
       targetId: target.id,
       targetName: target.name,
-      result: target.role === "werewolf" ? "werewolf" : "human",
+      result: ROLE_PROPERTIES[this.requireRole(target)].species === "werewolf" ? "werewolf" : "human",
       day: this.day
     };
     seer.divineResults.push(result);
-    if (target.role === "fox") {
+    if (ROLE_PROPERTIES[this.requireRole(target)].species === "fox") {
       this.divinedFoxIds.add(target.id);
     }
     this.record(
@@ -461,7 +462,7 @@ export class GameRoom {
     if (this.day === 1 && target.name !== FIRST_VICTIM_NAME) {
       throw new Error("1日目は初日犠牲者だけを襲撃できます。");
     }
-    if (this.day > 1 && target.role === "werewolf") {
+    if (this.day > 1 && ROLE_PROPERTIES[this.requireRole(target)].species === "werewolf") {
       throw new Error("人狼は襲撃対象にできません。");
     }
     this.attackTargetId = target.id;
@@ -509,7 +510,9 @@ export class GameRoom {
       } else if (this.phase === "nightAttack" && bot.role === "werewolf") {
         const targets = this.day === 1
           ? this.livingPlayers().filter((player) => player.name === FIRST_VICTIM_NAME)
-          : this.livingPlayers().filter((player) => player.role !== "werewolf" && !player.npc);
+          : this.livingPlayers().filter(
+              (player) => ROLE_PROPERTIES[this.requireRole(player)].species !== "werewolf" && !player.npc
+            );
         if (targets.length > 0) {
           result = this.attack(socketId, this.pick(targets).id);
         }
@@ -672,7 +675,7 @@ export class GameRoom {
       medium.mediumResults.push({
         targetId: executed.id,
         targetName: executed.name,
-        result: executed.role === "werewolf" ? "werewolf" : "human",
+        result: ROLE_PROPERTIES[this.requireRole(executed)].species === "werewolf" ? "werewolf" : "human",
         day: this.day
       });
     }
@@ -684,11 +687,17 @@ export class GameRoom {
       target = [...this.players.values()].find((player) => player.name === FIRST_VICTIM_NAME && player.alive);
     }
     if (!target || !target.alive) {
-      const candidates = this.livingPlayers().filter((player) => player.role !== "werewolf");
+      const candidates = this.livingPlayers().filter(
+        (player) => ROLE_PROPERTIES[this.requireRole(player)].species !== "werewolf"
+      );
       target = this.pick(candidates);
     }
     this.attackTargetId = null;
-    if (target && target.role !== "fox" && target.id !== this.guardTargetId) {
+    if (
+      target
+      && ROLE_PROPERTIES[this.requireRole(target)].species !== "fox"
+      && target.id !== this.guardTargetId
+    ) {
       target.alive = false;
       this.record(`${target.name} が襲撃されました。`, "public");
     }
@@ -705,10 +714,16 @@ export class GameRoom {
 
   private checkWinner(): Team | null {
     const living = this.livingPlayers();
-    const werewolves = living.filter((player) => player.role === "werewolf").length;
-    const humans = living.filter((player) => player.role !== "werewolf" && player.role !== "fox").length;
+    const werewolves = living.filter(
+      (player) => ROLE_PROPERTIES[this.requireRole(player)].species === "werewolf"
+    ).length;
+    const humans = living.filter(
+      (player) => ROLE_PROPERTIES[this.requireRole(player)].species === "human"
+    ).length;
     const baseWinner = werewolves === 0 ? "villagers" : werewolves >= humans ? "werewolves" : null;
-    return baseWinner && living.some((player) => player.role === "fox") ? "fox" : baseWinner;
+    return baseWinner && living.some(
+      (player) => ROLE_PROPERTIES[this.requireRole(player)].side === "fox"
+    ) ? "fox" : baseWinner;
   }
 
   private endGame(winner: Team): PhaseActionResult {
@@ -788,7 +803,7 @@ export class GameRoom {
 
     const humans = this.shuffle(this.humanPlayers());
     const roles = rolesForPlayerCount(humans.length + 1);
-    const firstVictimRoles = roles.filter((role) => role !== "werewolf" && role !== "fox");
+    const firstVictimRoles = roles.filter((role) => ROLE_PROPERTIES[role].species === "human");
     const firstVictimRole = this.pick(firstVictimRoles);
     const firstVictimRoleIndex = roles.indexOf(firstVictimRole);
     roles.splice(firstVictimRoleIndex, 1);

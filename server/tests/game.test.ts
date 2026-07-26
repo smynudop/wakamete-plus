@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_VICTIM_NAME, type Role } from "@wakamete-plus/shared";
+import {
+  DEFAULT_ROLE_PROPERTIES,
+  FIRST_VICTIM_NAME,
+  ROLE_PROPERTIES,
+  type Role
+} from "@wakamete-plus/shared";
 import { DEFAULT_ROOM_SETTINGS, GameRoom } from "../src/game.js";
 import { ROLE_SETS } from "../src/role-sets.js";
 
@@ -47,6 +52,14 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 }
 
 describe("GameRoom", () => {
+  it("defines role properties using human villager defaults", () => {
+    expect(DEFAULT_ROLE_PROPERTIES).toEqual({ species: "human", side: "villagers" });
+    expect(ROLE_PROPERTIES.villager).toEqual(DEFAULT_ROLE_PROPERTIES);
+    expect(ROLE_PROPERTIES.madman).toEqual({ species: "human", side: "werewolves" });
+    expect(ROLE_PROPERTIES.werewolf).toEqual({ species: "werewolf", side: "werewolves" });
+    expect(ROLE_PROPERTIES.fox).toEqual({ species: "fox", side: "fox" });
+  });
+
   it("has the first victim before players join the room", () => {
     const room = new GameRoom();
 

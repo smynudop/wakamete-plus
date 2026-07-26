@@ -25,6 +25,33 @@ export type Role =
   | "shared"
   | "fox";
 export type Team = "villagers" | "werewolves" | "fox";
+export type Species = "human" | "werewolf" | "fox";
+
+export interface RoleProperties {
+  species: Species;
+  side: Team;
+}
+
+export const DEFAULT_ROLE_PROPERTIES: Readonly<RoleProperties> = {
+  species: "human",
+  side: "villagers"
+};
+
+function roleProperties(overrides: Partial<RoleProperties> = {}): Readonly<RoleProperties> {
+  return { ...DEFAULT_ROLE_PROPERTIES, ...overrides };
+}
+
+export const ROLE_PROPERTIES: Readonly<Record<Role, Readonly<RoleProperties>>> = {
+  villager: roleProperties(),
+  seer: roleProperties(),
+  werewolf: roleProperties({ species: "werewolf", side: "werewolves" }),
+  madman: roleProperties({ side: "werewolves" }),
+  medium: roleProperties(),
+  hunter: roleProperties(),
+  shared: roleProperties(),
+  fox: roleProperties({ species: "fox", side: "fox" })
+};
+
 export type GamePhase =
   | "waiting"
   | "nightDiscussion"
