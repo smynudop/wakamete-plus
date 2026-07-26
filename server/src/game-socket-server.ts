@@ -2,9 +2,10 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "@wakamete-plus/shared";
 import type { GameEventBundle, GameRoom } from "./game.js";
+import { GameLogStore } from "./game-log-store.js";
 import { RoomManager } from "./rooms.js";
 
-export function attachGameSocketServer(httpServer: HttpServer): void {
+export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLogStore): void {
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
       origin: true
@@ -177,13 +178,32 @@ export function attachGameSocketServer(httpServer: HttpServer): void {
       timers.delete(roomId);
     }
     const delay = room.getTimerDelay();
-    if (delay === null) {
+    const closeDelay = room.getPostGameCloseDelay();
+    if (delay === null && closeDelay === null) {
       return;
     }
     timers.set(roomId, setTimeout(() => {
       timers.delete(roomId);
-      broadcastWithBots(roomId, room, room.advanceTimer());
-    }, delay));
+      if (delay !== null) {
+        broadcastWithBots(roomId, room, room.advanceTimer());
+        return;
+      }
+      void closeRoom(roomId, room);
+    }, delay ?? closeDelay!));
+  }
+
+  async function closeRoom(roomId: string, room: GameRoom): Promise<void> {
+    try {
+      await gameLogs.save(room.createArchive(roomId));
+      rooms.close(roomId);
+      io.in(roomId).socketsLeave(roomId);
+      io.emit("roomList", rooms.list());
+    } catch (error) {
+      console.error(`Failed to close room ${roomId}:`, error);
+      timers.set(roomId, setTimeout(() => {
+        timers.delete(roomId);
+        void closeRoom(roomId, room);
+      }, 5_000));
+    }
   }
 }
-

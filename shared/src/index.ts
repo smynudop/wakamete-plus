@@ -161,6 +161,18 @@ export interface GameEndPayload {
   log: string[];
 }
 
+export interface ArchivedGameLog {
+  schemaVersion: 1;
+  roomId: string;
+  room: RoomSettings;
+  startedAt: number;
+  endedAt: number;
+  closedAt: number;
+  winner: Team;
+  players: GameEndPayload["players"];
+  entries: GameLogEntry[];
+}
+
 export interface ClientToServerEvents {
   createRoom: (payload: CreateRoomPayload) => void;
   joinRoom: (payload: JoinRoomPayload) => void;

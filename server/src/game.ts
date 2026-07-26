@@ -7,6 +7,7 @@ import {
   type DivineResult,
   type MediumResult,
   type GameEndPayload,
+  type ArchivedGameLog,
   type GameLogEntry,
   type GamePhase,
   type JoinGamePayload,
@@ -147,6 +148,8 @@ export class GameRoom {
   private history: { entry: GameLogEntry; audience: GameLogDispatch["audience"]; playerId?: string }[] = [];
   private pendingEvents: GameLogDispatch[] = [];
   private winner: Team | null = null;
+  private startedAt: number | null = null;
+  private endedAt: number | null = null;
   private postGameChatEndsAt: number | null = null;
   private settings: RoomSettings;
 
@@ -289,6 +292,7 @@ export class GameRoom {
 
     this.assignRoles();
     this.day = 1;
+    this.startedAt = this.now();
     this.record("ゲームを開始しました。");
     this.setPhase("nightDiscussion");
     return this.bundle(true, null);
@@ -541,6 +545,38 @@ export class GameRoom {
     return Math.max(0, this.timer.endsAt - this.now());
   }
 
+  getPostGameCloseDelay(): number | null {
+    if (this.phase !== "ended" || this.postGameChatEndsAt === null) {
+      return null;
+    }
+    return Math.max(0, this.postGameChatEndsAt - this.now());
+  }
+
+  createArchive(roomId: string, closedAt = this.now()): ArchivedGameLog {
+    if (this.phase !== "ended" || !this.winner || this.startedAt === null || this.endedAt === null) {
+      throw new Error("終了していないゲームは保存できません。");
+    }
+    return {
+      schemaVersion: 1,
+      roomId,
+      room: this.settings,
+      startedAt: this.startedAt,
+      endedAt: this.endedAt,
+      closedAt,
+      winner: this.winner,
+      players: [...this.players.values()].map((player) => ({
+        id: player.id,
+        name: player.name,
+        handleName: player.handleName,
+        color: player.color,
+        alive: player.alive,
+        npc: player.npc,
+        role: this.requireRole(player)
+      })),
+      entries: this.history.map((item) => ({ ...item.entry }))
+    };
+  }
+
   getDebugPlayersForTests(): { id: string; name: string; alive: boolean; npc: boolean; role: Role | null }[] {
     return [...this.players.values()].map((player) => ({
       id: player.id,
@@ -650,10 +686,12 @@ export class GameRoom {
   }
 
   private endGame(winner: Team): PhaseActionResult {
+    const endedAt = this.now();
     this.winner = winner;
     this.phase = "ended";
     this.timer = null;
-    this.postGameChatEndsAt = this.now() + POST_GAME_CHAT_DURATION_MS;
+    this.endedAt = endedAt;
+    this.postGameChatEndsAt = endedAt + POST_GAME_CHAT_DURATION_MS;
     const winnerLabel = winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐";
     this.record(`${winnerLabel}陣営の勝利です。`, "public");
     return {

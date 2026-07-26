@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
   ChatChannel,
+  ArchivedGameLog,
   DivineResult,
   GameEndPayload,
   GameLogEntry,
@@ -32,6 +33,8 @@ const route = useRoute();
 const roomId = computed(() => String(route.params.roomId));
 const sessionTokenKey = computed(() => `wakamete:rooms:${roomId.value}:sessionToken`);
 const roomExists = ref<boolean | null>(null);
+const archivedGame = ref<ArchivedGameLog | null>(null);
+const archiveLookupPending = ref(false);
 
 
 const phaseLabels: Record<PublicGameState["phase"], string> = {
@@ -126,7 +129,11 @@ socket.on("gameState", (nextState) => {
   };
 });
 socket.on("roomList", (rooms) => {
-  roomExists.value = rooms.some((room) => room.id === roomId.value);
+  const exists = rooms.some((room) => room.id === roomId.value);
+  roomExists.value = exists;
+  if (!exists && !archivedGame.value && !archiveLookupPending.value) {
+    void loadArchivedGame();
+  }
 });
 socket.on("privateState", (nextState) => {
   if (developmentPreview.value.enabled) {
@@ -207,7 +214,7 @@ const remainingSeconds = computed(() => {
   return Math.max(0, Math.ceil((state.value.timer.endsAt - now.value) / 1000));
 });
 const canChat = computed(() => {
-  if (!joined.value) {
+  if (archivedGame.value || !joined.value) {
     return false;
   }
   if (state.value.phase === "waiting" || state.value.phase === "ended") {
@@ -240,6 +247,42 @@ const chatChannelOptions = computed<{ value: ChatChannel; label: string }[]>(() 
   return [{ value: "public", label: state.value.phase === "waiting" || state.value.phase === "ended" ? "チャット" : "議論" }];
 });
 const joined = computed(() => privateState.value.playerId !== null);
+
+async function loadArchivedGame() {
+  archiveLookupPending.value = true;
+  try {
+    const response = await fetch(`/api/logs/${encodeURIComponent(roomId.value)}`);
+    if (!response.ok) {
+      return;
+    }
+    const archived = await response.json() as ArchivedGameLog;
+    archivedGame.value = archived;
+    state.value = {
+      room: archived.room,
+      phase: "ended",
+      day: archived.entries.reduce((maximum, entry) => Math.max(maximum, entry.day), 0),
+      players: archived.players.map((player) => ({
+        ...player,
+        connected: false,
+        bot: false,
+        gameMaster: false
+      })),
+      timer: null,
+      canStart: false,
+      winner: archived.winner
+    };
+    logEntries.value = archived.entries;
+    gameEnd.value = {
+      winner: archived.winner,
+      players: archived.players,
+      log: archived.entries.map((entry) => entry.text)
+    };
+  } catch {
+    error.value = "保存済みゲームログの読み込みに失敗しました。";
+  } finally {
+    archiveLookupPending.value = false;
+  }
+}
 
 function joinGame() {
   error.value = "";
@@ -365,7 +408,10 @@ watch(
 </script>
 
 <template>
-  <main v-if="roomExists === false" class="page-shell missing-room">
+  <main v-if="archiveLookupPending" class="page-shell missing-room">
+    <h1>ゲームログを読み込んでいます</h1>
+  </main>
+  <main v-else-if="roomExists === false && !archivedGame" class="page-shell missing-room">
     <h1>村が見つかりません</h1>
     <p>指定された村は存在しないか、利用できなくなりました。</p>
     <RouterLink to="/lobby" class="primary-link">ロビーへ戻る</RouterLink>
@@ -373,6 +419,7 @@ watch(
   <main v-else class="app-shell" :class="[state.phase]">
 
 
+    <p v-if="archivedGame">このゲームは終了し、ログが保存されています。</p>
     <p v-if="error" class="error">{{ error }}</p>
 
 
@@ -518,8 +565,8 @@ watch(
           {{ player.name }} ({{ player.handleName }}): {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
         </p>
       </div>
-      <h2>全ログ</h2>
-      <div class="event-log">
+      <h2 v-if="!archivedGame">全ログ</h2>
+      <div v-if="!archivedGame" class="event-log">
         <p v-for="(entry, index) in gameEnd.log" :key="index">{{ entry }}</p>
       </div>
     </section>

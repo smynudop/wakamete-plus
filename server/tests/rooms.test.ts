@@ -109,4 +109,15 @@ describe("RoomManager", () => {
       player: { name: "", sessionToken: token ?? undefined }
     })).toThrow("名前を入力してください。");
   });
+
+  it("removes a closed room and clears its socket memberships", () => {
+    const manager = new RoomManager(() => "room-a");
+    manager.create("creator", roomPayload("終了村", "owner"));
+
+    manager.close("room-a");
+
+    expect(manager.list()).toEqual([]);
+    expect(() => manager.getRoom("room-a")).toThrow("指定したルームが見つかりません。");
+    expect(() => manager.roomForSocket("creator")).toThrow("先にルームへ参加してください。");
+  });
 });

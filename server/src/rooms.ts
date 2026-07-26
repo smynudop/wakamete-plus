@@ -71,6 +71,16 @@ export class RoomManager {
     return [...this.rooms.entries()].map(([id, room]) => this.toLobbyRoom(id, room.getState()));
   }
 
+  close(roomId: string): void {
+    this.requireRoom(roomId);
+    this.rooms.delete(roomId);
+    for (const [socketId, mappedRoomId] of this.socketRooms) {
+      if (mappedRoomId === roomId) {
+        this.socketRooms.delete(socketId);
+      }
+    }
+  }
+
   private toLobbyRoom(id: string, state: PublicGameState): LobbyRoom {
     return {
       id,

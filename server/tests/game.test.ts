@@ -468,6 +468,18 @@ describe("GameRoom", () => {
     }
 
     expect(ended?.winner).toBe("werewolves");
+    expect(room.getPostGameCloseDelay()).toBe(5 * 60 * 1_000);
+    expect(room.createArchive("room-a", 301_000)).toEqual(expect.objectContaining({
+      schemaVersion: 1,
+      roomId: "room-a",
+      startedAt: 1_000,
+      endedAt: 1_000,
+      closedAt: 301_000,
+      winner: "werewolves",
+      entries: expect.arrayContaining([
+        expect.objectContaining({ text: "人狼陣営の勝利です。", phase: "ended" })
+      ])
+    }));
   });
 
   it("restores a unified chronological chat and event log", () => {
