@@ -7,7 +7,7 @@ export const ROLE_SETS: Readonly<Record<number, RoleSet>> = {
   5:  { villager: 2, seer: 1, werewolf: 1, madman: 1, medium: 0, hunter: 0, shared: 0, fox: 0 },
   6:  { villager: 2, seer: 1, werewolf: 1, madman: 1, medium: 1, hunter: 0, shared: 0, fox: 0 },
   7:  { villager: 2, seer: 1, werewolf: 1, madman: 1, medium: 1, hunter: 1, shared: 0, fox: 0 },
-  8:  { villager: 5, seer: 1, werewolf: 2, madman: 0, medium: 0, hunter: 0, shared: 0, fox: 0 },
+  8:  { villager: 1, seer: 1, werewolf: 2, madman: 1, medium: 1, hunter: 0, shared: 2, fox: 0 },
   9:  { villager: 4, seer: 1, werewolf: 1, madman: 1, medium: 1, hunter: 1, shared: 0, fox: 0 },
   10: { villager: 5, seer: 1, werewolf: 1, madman: 1, medium: 1, hunter: 1, shared: 0, fox: 0 },
   11: { villager: 5, seer: 1, werewolf: 2, madman: 1, medium: 1, hunter: 1, shared: 0, fox: 0 },
