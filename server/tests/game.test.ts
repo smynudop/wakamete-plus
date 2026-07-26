@@ -6,7 +6,8 @@ function createStartedRoom() {
   let now = 1_000;
   const room = new GameRoom(() => now);
   const sockets = ["s1", "s2", "s3", "s4", "s5"];
-  sockets.forEach((socketId, index) => room.join(socketId, `player${index + 1}`));
+  room.create(sockets[0]!, { name: "player1" });
+  sockets.slice(1).forEach((socketId, index) => room.join(socketId, `player${index + 2}`));
   const startBundle = room.start("s1");
   return {
     room,
@@ -61,9 +62,9 @@ describe("GameRoom", () => {
     expect(room.getState().phase).toBe("waiting");
   });
 
-  it("grants room controls only to the first human player", () => {
+  it("grants room controls only to the room creator", () => {
     const room = new GameRoom();
-    room.join("s1", "game-master");
+    room.create("s1", { name: "game-master" });
     room.join("s2", "player2");
 
     expect(room.getState().players.find((player) => player.name === "game-master")?.gameMaster).toBe(true);
@@ -89,7 +90,7 @@ describe("GameRoom", () => {
 
   it("restores the same player and private state with a session token after the game starts", () => {
     const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => "session-player1");
-    const joined = room.join("s1", { name: "player1", password: "return-secret" });
+    const joined = room.create("s1", { name: "player1", password: "return-secret" });
     for (let index = 0; index < 4; index += 1) {
       room.addBot("s1");
     }
@@ -136,7 +137,7 @@ describe("GameRoom", () => {
 
   it("adds development bots as playable participants", () => {
     const room = new GameRoom();
-    room.join("s1", "player1");
+    room.create("s1", { name: "player1" });
     for (let index = 0; index < 4; index += 1) {
       room.addBot("s1");
     }
@@ -149,7 +150,7 @@ describe("GameRoom", () => {
 
   it("makes bots act during each applicable phase", () => {
     const room = new GameRoom();
-    room.join("s1", "player1");
+    room.create("s1", { name: "player1" });
     for (let index = 0; index < 4; index += 1) {
       room.addBot("s1");
     }
@@ -488,7 +489,7 @@ describe("GameRoom", () => {
 
   it("assigns and exposes all additional roles in a ten-player room", () => {
     const room = new GameRoom();
-    room.join("s1", "player1");
+    room.create("s1", { name: "player1" });
     room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
     for (let index = 0; index < 8; index += 1) {
       room.addBot("s1");
@@ -505,7 +506,7 @@ describe("GameRoom", () => {
 
   it("kills a divined fox at dawn while foxes survive attacks", () => {
     const room = new GameRoom();
-    room.join("s1", "player1");
+    room.create("s1", { name: "player1" });
     room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 10 });
     for (let index = 0; index < 8; index += 1) {
       room.addBot("s1");

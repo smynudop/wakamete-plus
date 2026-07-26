@@ -4,7 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "@wakamete-plus/shared";
-import { GameRoom, type GameEventBundle } from "./game.js";
+import type { GameEventBundle, GameRoom } from "./game.js";
+import { RoomManager } from "./rooms.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -15,8 +16,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   }
 });
 
-const room = new GameRoom();
-let timer: NodeJS.Timeout | null = null;
+const rooms = new RoomManager();
+const timers = new Map<string, NodeJS.Timeout>();
 
 const frontendDist = path.resolve(__dirname, "../../frontend/dist");
 app.use(express.static(frontendDist));
@@ -25,119 +26,159 @@ app.get("*", (_request, response) => {
 });
 
 io.on("connection", (socket) => {
-  emitToSocket(socket.id);
+  socket.emit("roomList", rooms.list());
 
-  socket.on("joinGame", (payload) => handle(socket.id, () => room.join(socket.id, payload)));
-  socket.on("addBot", () => handle(socket.id, () => room.addBot(socket.id)));
-  socket.on("startGame", () => handle(socket.id, () => room.start(socket.id)));
-  socket.on("updateRoomSettings", (settings) => handle(socket.id, () => room.updateRoomSettings(socket.id, settings)));
-  socket.on("sendChat", (payload) => handle(socket.id, () => room.sendChat(socket.id, payload.text, payload.channel)));
-  socket.on("vote", (payload) => handle(socket.id, () => room.vote(socket.id, payload.targetId)));
-  socket.on("divine", (payload) => handle(socket.id, () => room.divine(socket.id, payload.targetId)));
-  socket.on("guard", (payload) => handle(socket.id, () => room.guard(socket.id, payload.targetId)));
-  socket.on("attack", (payload) => handle(socket.id, () => room.attack(socket.id, payload.targetId)));
+  socket.on("createRoom", (payload) => {
+    handle(socket.id, () => {
+      const result = rooms.create(socket.id, payload);
+      void socket.join(result.roomId);
+      socket.emit("roomCreated", { roomId: result.roomId });
+      socket.emit("roomJoined", { roomId: result.roomId });
+      broadcastWithBots(result.roomId, result.room, result.bundle);
+    });
+  });
+  socket.on("joinRoom", (payload) => {
+    handle(socket.id, () => {
+      const result = rooms.join(socket.id, payload);
+      void socket.join(result.roomId);
+      socket.emit("roomJoined", { roomId: result.roomId });
+      broadcastWithBots(result.roomId, result.room, result.bundle);
+    });
+  });
+  socket.on("leaveRoom", () => {
+    handle(socket.id, () => {
+      const result = rooms.leave(socket.id);
+      if (!result) {
+        return;
+      }
+      void socket.leave(result.roomId);
+      socket.emit("roomLeft");
+      broadcastWithBots(result.roomId, result.room, result.bundle);
+    });
+  });
+  socket.on("joinGame", () => {
+    socket.emit("actionError", { message: "ロビーからルームを選択してください。" });
+  });
+  socket.on("addBot", () => withSocketRoom(socket.id, (room) => room.addBot(socket.id)));
+  socket.on("startGame", () => withSocketRoom(socket.id, (room) => room.start(socket.id)));
+  socket.on("updateRoomSettings", (settings) =>
+    withSocketRoom(socket.id, (room) => room.updateRoomSettings(socket.id, settings))
+  );
+  socket.on("sendChat", (payload) =>
+    withSocketRoom(socket.id, (room) => room.sendChat(socket.id, payload.text, payload.channel))
+  );
+  socket.on("vote", (payload) => withSocketRoom(socket.id, (room) => room.vote(socket.id, payload.targetId)));
+  socket.on("divine", (payload) => withSocketRoom(socket.id, (room) => room.divine(socket.id, payload.targetId)));
+  socket.on("guard", (payload) => withSocketRoom(socket.id, (room) => room.guard(socket.id, payload.targetId)));
+  socket.on("attack", (payload) => withSocketRoom(socket.id, (room) => room.attack(socket.id, payload.targetId)));
   socket.on("disconnect", () => {
-    broadcast(room.disconnect(socket.id));
+    const result = rooms.disconnect(socket.id);
+    if (result) {
+      broadcastWithBots(result.roomId, result.room, result.bundle);
+    }
   });
 });
 
-function handle(socketId: string, action: () => GameEventBundle): void {
+function handle(socketId: string, action: () => void): void {
   try {
-    broadcastWithBots(action());
+    action();
   } catch (error) {
-    io.to(socketId).emit("actionError", { message: error instanceof Error ? error.message : "操作に失敗しました。" });
+    io.to(socketId).emit("actionError", {
+      message: error instanceof Error ? error.message : "操作に失敗しました。"
+    });
   }
 }
 
-function broadcastWithBots(bundle: GameEventBundle): void {
-  broadcast(bundle);
+function withSocketRoom(socketId: string, action: (room: GameRoom) => GameEventBundle): void {
+  handle(socketId, () => {
+    const { roomId, room } = rooms.roomForSocket(socketId);
+    broadcastWithBots(roomId, room, action(room));
+  });
+}
+
+function broadcastWithBots(roomId: string, room: GameRoom, bundle: GameEventBundle): void {
+  broadcast(roomId, room, bundle);
   const botBundle = room.runBotActions();
-  if (botBundle.chats.length > 0 || botBundle.phaseChanged || botBundle.ended) {
-    broadcast(botBundle);
+  if (botBundle.chats.length > 0 || botBundle.events.length > 0 || botBundle.phaseChanged || botBundle.ended) {
+    broadcast(roomId, room, botBundle);
   }
 }
 
-function broadcast(bundle: GameEventBundle): void {
-  io.emit("gameState", bundle.state);
+function broadcast(roomId: string, room: GameRoom, bundle: GameEventBundle): void {
+  io.to(roomId).emit("gameState", bundle.state);
   if (bundle.phaseChanged) {
-    io.emit("phaseChanged", bundle.state);
+    io.to(roomId).emit("phaseChanged", bundle.state);
   }
   for (const message of bundle.chats) {
-    const entry = {
-      ...message,
-      kind: "chat" as const
-    };
+    const entry = { ...message, kind: "chat" as const };
     if (message.channel === "monologue") {
-      const senderSocketId = [...bundle.privateStates.entries()]
-        .find(([, privateState]) => privateState.playerId === message.senderId)?.[0];
+      const senderSocketId = socketIdForPlayer(bundle, message.senderId);
       if (senderSocketId) {
         io.to(senderSocketId).emit("logEntry", entry);
       }
     } else if (message.channel === "werewolf") {
-      for (const [socketId, privateState] of bundle.privateStates) {
-        if (privateState.role === "werewolf") {
-          io.to(socketId).emit("logEntry", entry);
-        }
-      }
+      emitToRole(bundle, "werewolf", (socketId) => io.to(socketId).emit("logEntry", entry));
     } else if (message.channel === "shared") {
-      for (const [socketId, privateState] of bundle.privateStates) {
-        if (privateState.role === "shared") {
-          io.to(socketId).emit("logEntry", entry);
-        }
-      }
+      emitToRole(bundle, "shared", (socketId) => io.to(socketId).emit("logEntry", entry));
     } else {
-      io.emit("logEntry", entry);
+      io.to(roomId).emit("logEntry", entry);
     }
   }
   for (const event of bundle.events) {
     if (event.audience === "public") {
-      io.emit("logEntry", event.entry);
+      io.to(roomId).emit("logEntry", event.entry);
     } else if (event.audience === "werewolves") {
-      for (const [socketId, privateState] of bundle.privateStates) {
-        if (privateState.role === "werewolf") {
-          io.to(socketId).emit("logEntry", event.entry);
-        }
-      }
+      emitToRole(bundle, "werewolf", (socketId) => io.to(socketId).emit("logEntry", event.entry));
     } else if (event.audience === "shared") {
-      for (const [socketId, privateState] of bundle.privateStates) {
-        if (privateState.role === "shared") {
-          io.to(socketId).emit("logEntry", event.entry);
-        }
-      }
-    } else {
-      const recipientSocketId = [...bundle.privateStates.entries()]
-        .find(([, privateState]) => privateState.playerId === event.playerId)?.[0];
+      emitToRole(bundle, "shared", (socketId) => io.to(socketId).emit("logEntry", event.entry));
+    } else if (event.playerId) {
+      const recipientSocketId = socketIdForPlayer(bundle, event.playerId);
       if (recipientSocketId) {
         io.to(recipientSocketId).emit("logEntry", event.entry);
       }
     }
   }
-  for (const socketId of io.sockets.sockets.keys()) {
+  for (const socketId of bundle.privateStates.keys()) {
     io.to(socketId).emit("privateState", room.getPrivateState(socketId));
   }
   if (bundle.ended) {
-    io.emit("gameEnded", bundle.ended);
+    io.to(roomId).emit("gameEnded", bundle.ended);
   }
-  scheduleTimer();
+  scheduleTimer(roomId, room);
+  io.emit("roomList", rooms.list());
 }
 
-function emitToSocket(socketId: string): void {
-  io.to(socketId).emit("gameState", room.getState());
-  io.to(socketId).emit("privateState", room.getPrivateState(socketId));
+function emitToRole(
+  bundle: GameEventBundle,
+  role: "werewolf" | "shared",
+  emit: (socketId: string) => void
+): void {
+  for (const [socketId, privateState] of bundle.privateStates) {
+    if (privateState.role === role) {
+      emit(socketId);
+    }
+  }
 }
 
-function scheduleTimer(): void {
-  if (timer) {
-    clearTimeout(timer);
-    timer = null;
+function socketIdForPlayer(bundle: GameEventBundle, playerId: string): string | undefined {
+  return [...bundle.privateStates.entries()]
+    .find(([, privateState]) => privateState.playerId === playerId)?.[0];
+}
+
+function scheduleTimer(roomId: string, room: GameRoom): void {
+  const currentTimer = timers.get(roomId);
+  if (currentTimer) {
+    clearTimeout(currentTimer);
+    timers.delete(roomId);
   }
   const delay = room.getTimerDelay();
   if (delay === null) {
     return;
   }
-  timer = setTimeout(() => {
-    broadcastWithBots(room.advanceTimer());
-  }, delay);
+  timers.set(roomId, setTimeout(() => {
+    timers.delete(roomId);
+    broadcastWithBots(roomId, room, room.advanceTimer());
+  }, delay));
 }
 
 const port = Number(process.env.PORT ?? 3000);

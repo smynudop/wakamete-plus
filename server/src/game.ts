@@ -208,7 +208,7 @@ export class GameRoom {
       alive: true,
       npc: false,
       bot: false,
-      gameMaster: this.humanPlayers().length === 0,
+      gameMaster: false,
       connected: true,
       sessionToken: this.createSessionToken(),
       role: null,
@@ -219,6 +219,20 @@ export class GameRoom {
     this.socketToPlayer.set(socketId, player.id);
     this.record(`${name} が参加しました。`);
     return this.bundle(false, null);
+  }
+
+  create(socketId: string, payload: JoinGamePayload): GameEventBundle {
+    if (this.humanPlayers().length > 0) {
+      throw new Error("このルームには作成者が参加済みです。");
+    }
+    const joined = this.join(socketId, payload);
+    const creator = this.requireSocketPlayer(socketId);
+    creator.gameMaster = true;
+    return {
+      ...joined,
+      state: this.getState(),
+      privateStates: new Map([[socketId, this.getPrivateState(socketId)]])
+    };
   }
 
   addBot(socketId: string): GameEventBundle {

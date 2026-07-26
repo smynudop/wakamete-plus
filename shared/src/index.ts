@@ -51,6 +51,29 @@ export interface JoinGamePayload {
   sessionToken?: string;
 }
 
+export interface CreateRoomPayload {
+  settings: RoomSettings;
+  player: JoinGamePayload;
+}
+
+export interface JoinRoomPayload {
+  roomId: string;
+  player: JoinGamePayload;
+}
+
+export type LobbyRoomStatus = "waiting" | "playing" | "ended";
+
+export interface LobbyRoom {
+  id: string;
+  roomName: string;
+  pr: string;
+  playerCount: number;
+  playerLimit: number;
+  phase: GamePhase;
+  day: number;
+  status: LobbyRoomStatus;
+}
+
 export interface PublicPlayer {
   id: string;
   name: string;
@@ -139,6 +162,9 @@ export interface GameEndPayload {
 }
 
 export interface ClientToServerEvents {
+  createRoom: (payload: CreateRoomPayload) => void;
+  joinRoom: (payload: JoinRoomPayload) => void;
+  leaveRoom: () => void;
   joinGame: (payload: JoinGamePayload) => void;
   addBot: () => void;
   startGame: () => void;
@@ -151,6 +177,10 @@ export interface ClientToServerEvents {
 }
 
 export interface ServerToClientEvents {
+  roomList: (rooms: LobbyRoom[]) => void;
+  roomCreated: (payload: { roomId: string }) => void;
+  roomJoined: (payload: { roomId: string }) => void;
+  roomLeft: () => void;
   gameState: (state: PublicGameState) => void;
   privateState: (state: PrivateState) => void;
   logEntry: (entry: GameLogEntry) => void;
