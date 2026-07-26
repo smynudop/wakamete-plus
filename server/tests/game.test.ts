@@ -5,7 +5,7 @@ import { ROLE_SETS } from "../src/role-sets.js";
 
 function createStartedRoom() {
   let now = 1_000;
-  const room = new GameRoom(() => now);
+  const room = new GameRoom(() => now, DEFAULT_ROOM_SETTINGS, undefined, () => 0);
   const sockets = ["s1", "s2", "s3", "s4", "s5"];
   room.create(sockets[0]!, { name: "player1" });
   sockets.slice(1).forEach((socketId, index) => room.join(socketId, `player${index + 2}`));
@@ -246,6 +246,10 @@ describe("GameRoom", () => {
     expect(room.divine(seerSocket, divineTarget.id).state.phase).toBe("nightDiscussion");
     expect(room.attack(werewolfSocket, firstVictim.id).state.phase).toBe("nightDiscussion");
     expect(room.advanceTimer().state.phase).toBe("nightAttack");
+    expect(() => room.divine(seerSocket, divineTarget.id)).toThrow("占いは一晩に1回だけ行えます。");
+    expect(() => room.attack(werewolfSocket, firstVictim.id)).toThrow(
+      "襲撃先の選択は一晩に1回だけ行えます。"
+    );
     expect(room.advanceTimer().state.players.find((player) => player.id === firstVictim.id)?.alive).toBe(false);
 
     const secondRoom = createStartedRoom();
@@ -256,6 +260,37 @@ describe("GameRoom", () => {
     )!;
     secondRoom.room.advanceTimer();
     expect(secondRoom.room.divine(secondSeerSocket, secondTarget.id).state.phase).toBe("nightAttack");
+  });
+
+  it("allows each hunter to guard only once per night", () => {
+    const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, undefined, () => 0);
+    room.create("s1", { name: "player1" });
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 7 });
+    for (let index = 0; index < 5; index += 1) {
+      room.addBot("s1");
+    }
+    const started = room.start("s1");
+    const hunterSocket = socketForRole(started, "hunter");
+    const hunterId = playerIdForSocket(started, hunterSocket);
+    const targets = room.getState().players.filter((player) => player.alive && player.id !== hunterId);
+
+    room.guard(hunterSocket, targets[0]!.id);
+
+    expect(() => room.guard(hunterSocket, targets[1]!.id)).toThrow("護衛は一晩に1回だけ行えます。");
+  });
+
+  it("assigns an eligible role to the first victim and auto-divines when it is the seer", () => {
+    const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, undefined, () => 0.4);
+    room.create("s1", { name: "player1" });
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 4 });
+    room.addBot("s1");
+    room.addBot("s1");
+
+    room.start("s1");
+
+    const firstVictim = room.getDebugPlayersForTests().find((player) => player.npc);
+    expect(firstVictim?.role).toBe("seer");
+    expect(firstVictim?.divineResultCount).toBe(1);
   });
 
   it("keeps votes cast during day discussion for the vote phase", () => {
@@ -517,7 +552,7 @@ describe("GameRoom", () => {
   });
 
   it("kills a divined fox at dawn while foxes survive attacks", () => {
-    const room = new GameRoom();
+    const room = new GameRoom(() => Date.now(), DEFAULT_ROOM_SETTINGS, undefined, () => 0);
     room.create("s1", { name: "player1" });
     room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 13 });
     for (let index = 0; index < 11; index += 1) {

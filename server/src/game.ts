@@ -21,7 +21,7 @@ import {
   type VoteSummary
 } from "@wakamete-plus/shared";
 import { randomUUID } from "node:crypto";
-import { ROLE_SET_PLAYER_COUNTS, rolesForHumanPlayers } from "./role-sets.js";
+import { ROLE_SET_PLAYER_COUNTS, rolesForPlayerCount } from "./role-sets.js";
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   roomName: "【モバマス】ほげほげふがふが村",
@@ -138,6 +138,8 @@ export class GameRoom {
   private votes = new Map<string, string>();
   private attackTargetId: string | null = null;
   private guardTargetId: string | null = null;
+  private attackedPlayerIds = new Set<string>();
+  private guardedPlayerIds = new Set<string>();
   private divinedFoxIds = new Set<string>();
   private chatSeq = 0;
   private logSeq = 0;
@@ -156,7 +158,8 @@ export class GameRoom {
   constructor(
     private readonly now: () => number = () => Date.now(),
     settings: RoomSettings = DEFAULT_ROOM_SETTINGS,
-    private readonly createSessionToken: () => string = randomUUID
+    private readonly createSessionToken: () => string = randomUUID,
+    private readonly random: () => number = Math.random
   ) {
     this.settings = normalizeRoomSettings(settings);
     this.addFirstVictim();
@@ -393,10 +396,18 @@ export class GameRoom {
     if (seer.role !== "seer") {
       throw new Error("占い師だけが占えます。");
     }
+    if (seer.divineResults.some((result) => result.day === this.day)) {
+      throw new Error("占いは一晩に1回だけ行えます。");
+    }
     const target = this.requireAlivePlayer(targetId);
     if (seer.id === target.id) {
       throw new Error("自分は占えません。");
     }
+    this.performDivine(seer, target);
+    return this.bundle(false, null);
+  }
+
+  private performDivine(seer: Player, target: Player): void {
     const result: DivineResult = {
       targetId: target.id,
       targetName: target.name,
@@ -412,7 +423,6 @@ export class GameRoom {
       "private",
       seer.id
     );
-    return this.bundle(false, null);
   }
 
   guard(socketId: string, targetId: string): GameEventBundle {
@@ -423,11 +433,15 @@ export class GameRoom {
     if (hunter.role !== "hunter") {
       throw new Error("狩人だけが護衛できます。");
     }
+    if (this.guardedPlayerIds.has(hunter.id)) {
+      throw new Error("護衛は一晩に1回だけ行えます。");
+    }
     const target = this.requireAlivePlayer(targetId);
     if (hunter.id === target.id) {
       throw new Error("自分は護衛できません。");
     }
     this.guardTargetId = target.id;
+    this.guardedPlayerIds.add(hunter.id);
     this.record(`${hunter.name} が ${target.name} を護衛しました。`, "private", hunter.id);
     return this.bundle(false, null);
   }
@@ -440,6 +454,9 @@ export class GameRoom {
     if (werewolf.role !== "werewolf") {
       throw new Error("人狼だけが襲撃できます。");
     }
+    if (this.attackedPlayerIds.has(werewolf.id)) {
+      throw new Error("襲撃先の選択は一晩に1回だけ行えます。");
+    }
     const target = this.requireAlivePlayer(targetId);
     if (this.day === 1 && target.name !== FIRST_VICTIM_NAME) {
       throw new Error("1日目は初日犠牲者だけを襲撃できます。");
@@ -448,6 +465,7 @@ export class GameRoom {
       throw new Error("人狼は襲撃対象にできません。");
     }
     this.attackTargetId = target.id;
+    this.attackedPlayerIds.add(werewolf.id);
     this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`, "werewolves");
     const result = this.phase === "nightAttack"
       ? this.resolveCurrentPhase()
@@ -577,13 +595,21 @@ export class GameRoom {
     };
   }
 
-  getDebugPlayersForTests(): { id: string; name: string; alive: boolean; npc: boolean; role: Role | null }[] {
+  getDebugPlayersForTests(): {
+    id: string;
+    name: string;
+    alive: boolean;
+    npc: boolean;
+    role: Role | null;
+    divineResultCount: number;
+  }[] {
     return [...this.players.values()].map((player) => ({
       id: player.id,
       name: player.name,
       alive: player.alive,
       npc: player.npc,
-      role: player.role
+      role: player.role,
+      divineResultCount: player.divineResults.length
     }));
   }
 
@@ -720,6 +746,8 @@ export class GameRoom {
     if (phase === "nightDiscussion") {
       this.attackTargetId = null;
       this.guardTargetId = null;
+      this.attackedPlayerIds.clear();
+      this.guardedPlayerIds.clear();
     }
     const startedAt = this.now();
     this.timer = {
@@ -727,6 +755,9 @@ export class GameRoom {
       endsAt: startedAt + this.settings.durationSeconds[phase] * 1000
     };
     this.record(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`);
+    if (phase === "nightDiscussion") {
+      this.runFirstVictimSeerAction();
+    }
   }
 
   private addFirstVictim(): void {
@@ -756,11 +787,28 @@ export class GameRoom {
     }
 
     const humans = this.shuffle(this.humanPlayers());
-    const humanRoles = rolesForHumanPlayers(humans.length + 1);
+    const roles = rolesForPlayerCount(humans.length + 1);
+    const firstVictimRoles = roles.filter((role) => role !== "werewolf" && role !== "fox");
+    const firstVictimRole = this.pick(firstVictimRoles);
+    const firstVictimRoleIndex = roles.indexOf(firstVictimRole);
+    roles.splice(firstVictimRoleIndex, 1);
+    const humanRoles = this.shuffle(roles);
     humans.forEach((player, index) => {
       player.role = humanRoles[index]!;
     });
-    firstVictim.role = "villager";
+    firstVictim.role = firstVictimRole;
+  }
+
+  private runFirstVictimSeerAction(): void {
+    const firstVictim = [...this.players.values()]
+      .find((player) => player.name === FIRST_VICTIM_NAME && player.alive && player.role === "seer");
+    if (!firstVictim) {
+      return;
+    }
+    const targets = this.livingPlayers().filter((player) => player.id !== firstVictim.id);
+    if (targets.length > 0) {
+      this.performDivine(firstVictim, this.pick(targets));
+    }
   }
 
   private bundle(phaseChanged: boolean, ended: GameEndPayload | null): GameEventBundle {
@@ -957,14 +1005,19 @@ export class GameRoom {
   }
 
   private shuffle<T>(items: T[]): T[] {
-    return [...items].sort(() => Math.random() - 0.5);
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(this.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
+    }
+    return shuffled;
   }
 
   private pick<T>(items: T[]): T {
     if (items.length === 0) {
       throw new Error("候補がありません。");
     }
-    return items[Math.floor(Math.random() * items.length)] as T;
+    return items[Math.floor(this.random() * items.length)] as T;
   }
 }
 
