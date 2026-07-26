@@ -178,7 +178,7 @@ export interface ClientToServerEvents {
 
 export interface ServerToClientEvents {
   roomList: (rooms: LobbyRoom[]) => void;
-  roomCreated: (payload: { roomId: string }) => void;
+  roomCreated: (payload: { roomId: string; sessionToken: string }) => void;
   roomJoined: (payload: { roomId: string }) => void;
   roomLeft: () => void;
   gameState: (state: PublicGameState) => void;

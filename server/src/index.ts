@@ -32,7 +32,11 @@ io.on("connection", (socket) => {
     handle(socket.id, () => {
       const result = rooms.create(socket.id, payload);
       void socket.join(result.roomId);
-      socket.emit("roomCreated", { roomId: result.roomId });
+      const sessionToken = result.bundle.privateStates.get(socket.id)?.sessionToken;
+      if (!sessionToken) {
+        throw new Error("作成者のセッションを作成できませんでした。");
+      }
+      socket.emit("roomCreated", { roomId: result.roomId, sessionToken });
       socket.emit("roomJoined", { roomId: result.roomId });
       broadcastWithBots(result.roomId, result.room, result.bundle);
     });
