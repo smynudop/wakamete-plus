@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
-import type { ClientToServerEvents, ServerToClientEvents } from "@wakamete-plus/shared";
+import type { ClientToServerEvents, GameLogEntry, ServerToClientEvents } from "@wakamete-plus/shared";
 import type { GameEventBundle, GameRoom } from "./game.js";
 import { GameLogStore } from "./game-log-store.js";
 import { RoomManager } from "./rooms.js";
@@ -116,7 +116,7 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
       io.to(roomId).emit("phaseChanged", bundle.state);
     }
     for (const message of bundle.chats) {
-      const entry = { ...message, kind: "chat" as const };
+      const entry: GameLogEntry = { ...message, kind: "chat" as const };
       if (message.channel === "monologue") {
         const senderSocketId = socketIdForPlayer(bundle, message.senderId);
         if (senderSocketId) {

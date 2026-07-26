@@ -547,7 +547,7 @@ watch(
           <p
             v-for="entry in displayLogEntries"
             :key="entry.id"
-            :class="entry.kind === 'chat' ? ['message', entry.channel] : 'event-entry'"
+            :class="entry.kind === 'chat' ? ['message', entry.channel] : ['event-entry', entry.eventType]"
           >
             <template v-if="entry.kind === 'chat'">
               <span><span>◆</span><strong>{{ entry.senderName }}</strong>さん</span>

@@ -132,17 +132,29 @@ export interface PublicGameState {
   canStart: boolean;
   winner: Team | null;
 }
+export type EventType = "join" | "role" | "vote" | "game" | "progress" | "death"
+export type GameLogEntry  = GameChatEntry | GameEventEntry
 
-export interface GameLogEntry {
+type GameChatEntry = {
   id: string;
-  kind: "event" | "chat";
+  kind: "chat";
   text: string;
   day: number;
   phase: GamePhase;
   sentAt: number;
-  channel?: ChatChannel;
-  senderId?: string;
-  senderName?: string;
+  channel: ChatChannel;
+  senderId: string;
+  senderName: string;
+}
+
+type GameEventEntry = {
+  id: string;
+  kind: "event";
+  eventType: EventType
+  text: string;
+  day: number;
+  phase: GamePhase;
+  sentAt: number;
 }
 
 export interface DivineResult {

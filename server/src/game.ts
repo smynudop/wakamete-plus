@@ -19,7 +19,8 @@ import {
   type Role,
   type RoomSettings,
   type Team,
-  type VoteSummary
+  type VoteSummary,
+  type EventType
 } from "@wakamete-plus/shared";
 import { randomUUID } from "node:crypto";
 import { ROLE_SET_PLAYER_COUNTS, rolesForPlayerCount } from "./role-sets.js";
@@ -225,7 +226,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(socketId, player.id);
-    this.record(`${name} が参加しました。`);
+    this.record(`${name} が参加しました。`, "join");
     return this.bundle(false, null);
   }
 
@@ -272,7 +273,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(botSocketId, player.id);
-    this.record(`${player.name} が参加しました。`);
+    this.record(`${player.name} が参加しました。`, "join");
     return this.bundle(false, null);
   }
 
@@ -297,7 +298,7 @@ export class GameRoom {
     this.assignRoles();
     this.day = 1;
     this.startedAt = this.now();
-    this.record("ゲームを開始しました。");
+    this.record("ゲームを開始しました。", "game");
     this.setPhase("nightDiscussion");
     return this.bundle(true, null);
   }
@@ -382,7 +383,7 @@ export class GameRoom {
       throw new Error("自分には投票できません。");
     }
     this.votes.set(voter.id, target.id);
-    this.record(`${voter.name} が ${target.name} に投票しました。`, "private", voter.id);
+    this.record(`${voter.name} が ${target.name} に投票しました。`, "vote", "private", voter.id);
     const result = this.phase === "dayVote" && this.allLivingHumansActed(this.votes)
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -421,6 +422,7 @@ export class GameRoom {
     }
     this.record(
       `${seer.name} が ${target.name} を占いました（${result.result === "werewolf" ? "人狼" : "人間"}）。`,
+      "role",
       "private",
       seer.id
     );
@@ -443,7 +445,7 @@ export class GameRoom {
     }
     this.guardTargetId = target.id;
     this.guardedPlayerIds.add(hunter.id);
-    this.record(`${hunter.name} が ${target.name} を護衛しました。`, "private", hunter.id);
+    this.record(`${hunter.name} が ${target.name} を護衛しました。`, "role","private", hunter.id);
     return this.bundle(false, null);
   }
 
@@ -467,7 +469,7 @@ export class GameRoom {
     }
     this.attackTargetId = target.id;
     this.attackedPlayerIds.add(werewolf.id);
-    this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`, "werewolves");
+    this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`,"role", "werewolves");
     const result = this.phase === "nightAttack"
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -659,10 +661,10 @@ export class GameRoom {
     const resultText = [...counts.entries()]
       .map(([targetId, count]) => `${this.playerName(targetId)} ${count}票`)
       .join(", ");
-    this.record(`投票結果: ${resultText || "全員棄権"}`, "public");
+    this.record(`投票結果: ${resultText || "全員棄権"}`, "vote" ,"public");
     this.votes.clear();
     if (counts.size === 0) {
-      this.record("処刑は行われませんでした。", "public");
+      this.record("処刑は行われませんでした。", "vote", "public");
       return;
     }
 
@@ -670,7 +672,7 @@ export class GameRoom {
     const candidates = [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id);
     const executed = this.requirePlayer(this.pick(candidates));
     executed.alive = false;
-    this.record(`${executed.name} が処刑されました。`, "public");
+    this.record(`${executed.name} が処刑されました。`,"death", "public");
     for (const medium of this.livingPlayers().filter((player) => player.role === "medium")) {
       medium.mediumResults.push({
         targetId: executed.id,
@@ -699,13 +701,13 @@ export class GameRoom {
       && target.id !== this.guardTargetId
     ) {
       target.alive = false;
-      this.record(`${target.name} が襲撃されました。`, "public");
+      this.record(`${target.name} が襲撃されました。`, "death", "public");
     }
     for (const foxId of this.divinedFoxIds) {
       const fox = this.players.get(foxId);
       if (fox?.alive) {
         fox.alive = false;
-        this.record(`${fox.name} が死亡しました。`, "public");
+        this.record(`${fox.name} が襲撃されました。`,"death", "public"); // 人狼の死体と同じ文言にしておく
       }
     }
     this.divinedFoxIds.clear();
@@ -734,7 +736,7 @@ export class GameRoom {
     this.endedAt = endedAt;
     this.postGameChatEndsAt = endedAt + POST_GAME_CHAT_DURATION_MS;
     const winnerLabel = winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐";
-    this.record(`${winnerLabel}陣営の勝利です。`, "public");
+    this.record(`${winnerLabel}陣営の勝利です。`,"game", "public");
     return {
       phaseChanged: true,
       gameEnded: {
@@ -769,7 +771,7 @@ export class GameRoom {
       startedAt,
       endsAt: startedAt + this.settings.durationSeconds[phase] * 1000
     };
-    this.record(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`);
+    this.record(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`, "progress");
     if (phase === "nightDiscussion") {
       this.runFirstVictimSeerAction();
     }
@@ -874,7 +876,7 @@ export class GameRoom {
     }
     this.socketToPlayer.set(socketId, player.id);
     player.connected = true;
-    this.record(`${player.name} が復帰しました。`);
+    this.record(`${player.name} が復帰しました。`, "join");
     return this.bundle(false, null);
   }
 
@@ -945,6 +947,7 @@ export class GameRoom {
 
   private record(
     text: string,
+    eventType: EventType,
     audience?: GameLogDispatch["audience"],
     playerId?: string
   ): void {
@@ -952,6 +955,7 @@ export class GameRoom {
     const effectiveAudience = audience ?? "public";
     const entry: GameLogEntry = {
       id: `e${++this.logSeq}`,
+      eventType: eventType,
       kind: "event",
       text,
       day: this.day,
