@@ -3,3 +3,6 @@ dist/
 dist-ts/
 *.tsbuildinfo
 data/game-logs/
+.env
+.env.*
+!.env.example

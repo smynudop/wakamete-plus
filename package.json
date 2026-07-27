@@ -6,6 +6,9 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm --filter @wakamete-plus/server dev",
+    "mongo:down": "docker compose down",
+    "mongo:logs": "docker compose logs -f mongo",
+    "mongo:up": "docker compose up -d --wait mongo",
     "test": "pnpm --filter @wakamete-plus/server test"
   },
   "devDependencies": {

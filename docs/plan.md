@@ -10,6 +10,7 @@ game.mdを参照のこと。
 
 * typescriptで統一する
 * pnpmを使ったモノレポ構成とする
+* 開発用データベースにはDocker Composeで起動するMongoDB 8.0を使用する
 
 ### フォルダ構成
 * server
@@ -32,6 +33,27 @@ game.mdを参照のこと。
    * 保存形式には `schemaVersion` を持たせ、JSONは一時ファイルへの書き込み後にrenameして確定する。
    * 保存済みログは `GET /api/logs/:roomId` から静的に参照する。保存に失敗した場合はインメモリのルームを残して再試行する。
 
+### 開発用MongoDB
+
+初回のみ `.env.example` を `.env` にコピーし、必要に応じて開発用の認証情報を変更する。
+
+```sh
+cp .env.example .env
+pnpm mongo:up
+```
+
+MongoDBはホストの `127.0.0.1:27017` にのみ公開される。アプリケーションからは
+`.env` の `MONGODB_URI` を使用する。データはDockerの名前付きボリューム
+`wakamete-plus_mongo-data` に保存される。
+
+```sh
+pnpm mongo:logs
+pnpm mongo:down
+```
+
+`pnpm mongo:down` はデータを保持する。データも削除して初期化し直す場合は
+`docker compose down --volumes` を実行する。
+
 * frontend
  * vite + vueでhtmlをビルドし配置。expressで配信する。
  * Vue RouterのHistoryモードを利用したSPAとし、トップ、公開ルームのロビー、ルームごとのゲーム画面を持つ。
@@ -39,4 +61,3 @@ game.mdを参照のこと。
  * 開発サーバーでは、実ゲームの状態とは独立して役職・フェーズ・参加状態などを変更できるUIプレビュー操作盤を提供する。
    * 操作盤は `import.meta.env.DEV` を境界に遅延ロードし、本番ビルドには含めない。
    * プレビュー中はSocket.IOから切断し、サーバーからの状態更新と表示用状態が競合しないようにする。解除時に再接続して実ゲーム状態へ戻す。
-
