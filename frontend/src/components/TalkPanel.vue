@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { ChatSize } from "@wakamete-plus/shared";
+
 type ChatChannelOption = {
     value: string
     label: string
@@ -15,8 +17,13 @@ function sendChat()
 {
     emits("send")
 }
-const chatChannel = defineModel("chatChannel", {required: true})
-const chatText = defineModel("chatText", {required: true})
+const chatChannel = defineModel<string>("chatChannel", {required: true})
+const chatText = defineModel<string>("chatText", {required: true})
+const chatSize = defineModel<ChatSize>("chatSize", {required: true})
+
+function toggleSize(size: Exclude<ChatSize, "normal">) {
+    chatSize.value = chatSize.value === size ? "normal" : size
+}
 </script>
 
 
@@ -27,7 +34,45 @@ const chatText = defineModel("chatText", {required: true})
             {{ option.label }}
         </option>
         </select>
-        <input type="text" v-model="chatText" :disabled="!canChat" maxlength="160" />
+        <textarea
+            v-model="chatText"
+            :disabled="!canChat"
+            maxlength="160"
+            rows="3"
+            @keydown.ctrl.enter.prevent="sendChat"
+        ></textarea>
+        <div class="size-buttons">
+            <button
+                type="button"
+                :disabled="!canChat"
+                :aria-pressed="chatSize === 'strong'"
+                :class="{ active: chatSize === 'strong' }"
+                @click="toggleSize('strong')"
+            >強</button>
+            <button
+                type="button"
+                :disabled="!canChat"
+                :aria-pressed="chatSize === 'weak'"
+                :class="{ active: chatSize === 'weak' }"
+                @click="toggleSize('weak')"
+            >弱</button>
+        </div>
         <button :disabled="!canChat">発言</button>
     </form>
-</template>   
+</template>
+
+<style scoped>
+.size-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.size-buttons button {
+    background: #6d7779;
+}
+
+.size-buttons button.active {
+    background: #8b2430;
+    box-shadow: inset 0 0 0 0.15rem #fff;
+}
+</style>

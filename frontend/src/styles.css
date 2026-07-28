@@ -53,6 +53,7 @@ button:disabled {
 input[type="text"],
 input[type="password"],
 input[type="number"],
+textarea,
 select {
   width: 100%;
   border: 1px solid #b9b0a2;
@@ -70,8 +71,7 @@ select {
 }
 
 .top-bar,
-.layout,
-.end-panel {
+.layout {
 
   margin: 0 auto 16px;
 }
@@ -164,13 +164,18 @@ div.bar{
 .status-row,
 .chat-form {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 10px;
 }
 
 .chat-form:has(select) {
-  grid-template-columns: minmax(120px, auto) 1fr auto;
+  grid-template-columns: minmax(120px, auto) 1fr auto auto;
+}
+
+.chat-form textarea {
+  min-height: 4.5rem;
+  resize: vertical;
 }
 
 .role-box {
@@ -269,22 +274,22 @@ div.bar{
   font-style: italic;
 }
 
+.chat-size-strong {
+  font-size: 1.25em;
+  font-weight: 700;
+}
+
+.chat-size-weak {
+  color: #727b80;
+  font-size: 0.85em;
+}
+
 .messages p.event-entry {
   display: block;
   border-left: 0.2rem solid #8b938f;
   padding: 0.25rem 0.75rem;
   color: #454d49;
   background: #f3f5f4;
-}
-
-.end-panel {
-  padding: 16px;
-}
-
-.end-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
 }
 
 @media (max-width: 760px) {

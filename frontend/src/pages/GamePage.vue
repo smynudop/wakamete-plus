@@ -5,9 +5,9 @@ import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
   ChatChannel,
+  ChatSize,
   ArchivedGameLog,
   DivineResult,
-  GameEndPayload,
   GameLogEntry,
   PrivateState,
   PublicGameState,
@@ -56,6 +56,7 @@ const joinState = ref<JoinState>({
 });
 const chatText = ref("");
 const chatChannel = ref<ChatChannel>("public");
+const chatSize = ref<ChatSize>("normal");
 const selectedVote = ref("");
 const selectedDivine = ref("");
 const selectedAttack = ref("");
@@ -63,7 +64,6 @@ const selectedGuard = ref("");
 const error = ref("");
 const logEntries = ref<GameLogEntry[]>([]);
 const displayLogEntries = computed(() => logEntries.value.toReversed())
-const gameEnd = ref<GameEndPayload | null>(null);
 const now = ref(Date.now());
 const state = ref<PublicGameState>({
   room: {
@@ -169,12 +169,6 @@ socket.on("phaseChanged", () => {
 socket.on("actionError", (payload) => {
   error.value = payload.message;
 });
-socket.on("gameEnded", (payload) => {
-  if (developmentPreview.value.enabled) {
-    return;
-  }
-  gameEnd.value = payload;
-});
 socket.on("connect", () => {
   if (joinState.value.sessionToken) {
     socket.emit("joinRoom", {
@@ -273,11 +267,6 @@ async function loadArchivedGame() {
       winner: archived.winner
     };
     logEntries.value = archived.entries;
-    gameEnd.value = {
-      winner: archived.winner,
-      players: archived.players,
-      log: archived.entries.map((entry) => entry.text)
-    };
   } catch {
     error.value = "保存済みゲームログの読み込みに失敗しました。";
   } finally {
@@ -323,8 +312,9 @@ function sendChat() {
     ? chatChannel.value
     : chatChannelOptions.value[0]?.value ?? "public";
   chatChannel.value = channel;
-  socket.emit("sendChat", { text: chatText.value, channel });
+  socket.emit("sendChat", { text: chatText.value, channel, size: chatSize.value });
   chatText.value = "";
+  chatSize.value = "normal";
 }
 
 function vote() {
@@ -491,6 +481,7 @@ watch(
           :chat-channel-options="chatChannelOptions" 
           v-model:chat-text="chatText" 
           v-model:chat-channel="chatChannel"
+          v-model:chat-size="chatSize"
           @send="sendChat"/>
         <action-panel 
           v-if="(state.phase === 'dayDiscussion' || state.phase === 'dayVote') && me?.alive"
@@ -539,6 +530,7 @@ watch(
         <div class="status-row">
           <span>{{ state.day === 0 ? "開始前" : `${state.day}日目` }}</span>
           <span>{{ phaseLabels[state.phase] }}</span>
+          <span v-if="state.phase === 'ended' && remainingSeconds !== null">ルーム終了まで</span>
           <strong v-if="remainingSeconds !== null">{{ remainingSeconds }}s</strong>
         </div>
       </section>
@@ -550,8 +542,11 @@ watch(
             :class="entry.kind === 'chat' ? ['message', entry.channel] : ['event-entry', entry.eventType]"
           >
             <template v-if="entry.kind === 'chat'">
-              <span><span>◆</span><strong>{{ entry.senderName }}</strong>さん</span>
-              <span>「{{ entry.text }}」</span>
+              <span :style="{ color: entry.senderColor }"><span>◆</span><strong>{{ entry.senderName }}</strong>さん</span>
+              <span :class="`chat-size-${entry.size}`">「<template
+                v-for="(line, index) in entry.text.split('\n')"
+                :key="index"
+              ><br v-if="index > 0" />{{ line }}</template>」</span>
             </template>
             <template v-else>{{ entry.text }}</template>
           </p>
@@ -559,18 +554,6 @@ watch(
       </div>
     </section>
 
-    <section v-if="gameEnd" class="end-panel">
-      <h2>{{ gameEnd.winner === "villagers" ? "村人陣営" : gameEnd.winner === "werewolves" ? "人狼陣営" : "妖狐陣営" }}の勝利</h2>
-      <div class="end-grid">
-        <p v-for="player in gameEnd.players" :key="player.id">
-          {{ player.name }} ({{ player.handleName }}): {{ roleLabels[player.role] }} / {{ player.alive ? "生存" : "死亡" }}
-        </p>
-      </div>
-      <h2 v-if="!archivedGame">全ログ</h2>
-      <div v-if="!archivedGame" class="event-log">
-        <p v-for="(entry, index) in gameEnd.log" :key="index">{{ entry }}</p>
-      </div>
-    </section>
   </main>
   <DevelopmentPanel
     v-if="isDevelopment && DevelopmentPanel"

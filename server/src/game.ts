@@ -5,6 +5,7 @@ import {
   ROLE_PROPERTIES,
   type ChatChannel,
   type ChatMessage,
+  type ChatSize,
   type DivineResult,
   type MediumResult,
   type GameEndPayload,
@@ -316,12 +317,18 @@ export class GameRoom {
     return this.bundle(false, null);
   }
 
-  sendChat(socketId: string, text: string, requestedChannel: ChatChannel = "public"): GameEventBundle {
+  sendChat(
+    socketId: string,
+    text: string,
+    requestedChannel: ChatChannel = "public",
+    size: ChatSize = "normal"
+  ): GameEventBundle {
     const player = this.requireSocketPlayer(socketId);
     const normalizedText = text.trim();
     if (!normalizedText) {
       throw new Error("メッセージを入力してください。");
     }
+    const normalizedSize: ChatSize = size === "strong" || size === "weak" ? size : "normal";
 
     let channel: ChatChannel;
     if (this.phase === "waiting") {
@@ -364,6 +371,8 @@ export class GameRoom {
       channel,
       senderId: player.id,
       senderName: player.name,
+      senderColor: player.color,
+      size: normalizedSize,
       text: normalizedText,
       sentAt: this.now(),
       day: this.day,
@@ -732,9 +741,12 @@ export class GameRoom {
     const endedAt = this.now();
     this.winner = winner;
     this.phase = "ended";
-    this.timer = null;
     this.endedAt = endedAt;
     this.postGameChatEndsAt = endedAt + POST_GAME_CHAT_DURATION_MS;
+    this.timer = {
+      startedAt: endedAt,
+      endsAt: this.postGameChatEndsAt
+    };
     const winnerLabel = winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐";
     this.record(`${winnerLabel}陣営の勝利です。`,"game", "public");
     return {
@@ -989,7 +1001,9 @@ export class GameRoom {
         sentAt: message.sentAt,
         channel: message.channel,
         senderId: message.senderId,
-        senderName: message.senderName
+        senderName: message.senderName,
+        senderColor: message.senderColor,
+        size: message.size
       },
       audience,
       playerId: message.channel === "monologue" ? message.senderId : undefined

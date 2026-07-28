@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_PLAYER_COLOR,
   DEFAULT_ROLE_PROPERTIES,
   FIRST_VICTIM_NAME,
   ROLE_PROPERTIES,
@@ -228,8 +229,14 @@ describe("GameRoom", () => {
 
   it("allows public chat before play and the appropriate private channels at night", () => {
     const waitingRoom = new GameRoom();
-    waitingRoom.join("s1", "player1");
-    expect(waitingRoom.sendChat("s1", "開始前です", "werewolf").chats[0]?.channel).toBe("public");
+    waitingRoom.join("s1", { name: "player1", color: "#2f80c7" });
+    expect(waitingRoom.sendChat("s1", "開始前です\n二行目です", "werewolf", "strong").chats[0])
+      .toEqual(expect.objectContaining({
+        channel: "public",
+        text: "開始前です\n二行目です",
+        senderColor: "#2f80c7",
+        size: "strong"
+      }));
 
     const { room, startBundle } = createStartedRoom();
     const werewolfSocket = socketForRole(startBundle, "werewolf");
@@ -517,6 +524,10 @@ describe("GameRoom", () => {
 
     expect(ended?.winner).toBe("werewolves");
     expect(room.getPostGameCloseDelay()).toBe(5 * 60 * 1_000);
+    expect(room.getState().timer).toEqual({
+      startedAt: 1_000,
+      endsAt: 301_000
+    });
     expect(room.createArchive("room-a", 301_000)).toEqual(expect.objectContaining({
       schemaVersion: 1,
       roomId: "room-a",
@@ -543,6 +554,8 @@ describe("GameRoom", () => {
     expect(log.map((entry) => entry.kind)).toEqual(["event", "chat", "event"]);
     expect(log[1]).toEqual(expect.objectContaining({
       senderName: "player1",
+      senderColor: DEFAULT_PLAYER_COLOR,
+      size: "normal",
       text: "履歴に残る発言"
     }));
   });

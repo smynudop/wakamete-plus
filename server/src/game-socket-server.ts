@@ -58,7 +58,9 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
       withSocketRoom(socket.id, (room) => room.updateRoomSettings(socket.id, settings))
     );
     socket.on("sendChat", (payload) =>
-      withSocketRoom(socket.id, (room) => room.sendChat(socket.id, payload.text, payload.channel))
+      withSocketRoom(socket.id, (room) =>
+        room.sendChat(socket.id, payload.text, payload.channel, payload.size)
+      )
     );
     socket.on("vote", (payload) =>
       withSocketRoom(socket.id, (room) => room.vote(socket.id, payload.targetId))

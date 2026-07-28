@@ -61,6 +61,7 @@ export type GamePhase =
   | "ended";
 
 export type ChatChannel = "public" | "werewolf" | "shared" | "monologue";
+export type ChatSize = "normal" | "strong" | "weak";
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 export interface RoomSettings {
@@ -145,6 +146,8 @@ type GameChatEntry = {
   channel: ChatChannel;
   senderId: string;
   senderName: string;
+  senderColor: string;
+  size: ChatSize;
 }
 
 type GameEventEntry = {
@@ -186,6 +189,8 @@ export interface ChatMessage {
   channel: ChatChannel;
   senderId: string;
   senderName: string;
+  senderColor: string;
+  size: ChatSize;
   text: string;
   sentAt: number;
   day: number;
@@ -222,7 +227,7 @@ export interface ClientToServerEvents {
   addBot: () => void;
   startGame: () => void;
   updateRoomSettings: (settings: RoomSettings) => void;
-  sendChat: (payload: { text: string; channel: ChatChannel }) => void;
+  sendChat: (payload: { text: string; channel: ChatChannel; size: ChatSize }) => void;
   vote: (payload: { targetId: string }) => void;
   divine: (payload: { targetId: string }) => void;
   guard: (payload: { targetId: string }) => void;
