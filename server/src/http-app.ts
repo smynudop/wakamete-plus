@@ -1,20 +1,27 @@
 import express, { type Express } from "express";
 import path from "node:path";
 import { ROLE_SETS } from "./role-sets.js";
-import { GameLogStore } from "./game-log-store.js";
+import type { GameLogRepository } from "./game-log-store.js";
 
 export function createHttpApp(
   frontendDist: string,
-  gameLogs = new GameLogStore(path.resolve("data/game-logs"))
+  gameLogs?: GameLogRepository
 ): Express {
   const app = express();
 
   app.get("/api/role-sets", (_request, response) => {
     response.json(ROLE_SETS);
   });
+  app.get("/api/logs", async (_request, response, next) => {
+    try {
+      response.json(await requireGameLogs(gameLogs).list());
+    } catch (error) {
+      next(error);
+    }
+  });
   app.get("/api/logs/:roomId", async (request, response, next) => {
     try {
-      const log = await gameLogs.find(request.params.roomId);
+      const log = await requireGameLogs(gameLogs).find(request.params.roomId);
       if (!log) {
         response.status(404).json({ message: "指定したゲームログが見つかりません。" });
         return;
@@ -34,4 +41,11 @@ export function createHttpApp(
   });
 
   return app;
+}
+
+function requireGameLogs(gameLogs: GameLogRepository | undefined): GameLogRepository {
+  if (!gameLogs) {
+    throw new Error("ゲームログデータベースが設定されていません。");
+  }
+  return gameLogs;
 }

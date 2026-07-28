@@ -2,10 +2,10 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, GameLogEntry, ServerToClientEvents } from "@wakamete-plus/shared";
 import type { GameEventBundle, GameRoom } from "./game.js";
-import { GameLogStore } from "./game-log-store.js";
+import type { GameLogRepository } from "./game-log-store.js";
 import { RoomManager } from "./rooms.js";
 
-export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLogStore): void {
+export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLogRepository): void {
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
       origin: true

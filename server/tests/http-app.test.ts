@@ -1,12 +1,9 @@
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { mkdtemp } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ArchivedGameLog } from "@wakamete-plus/shared";
+import type { ArchivedGameLog, ArchivedGameSummary } from "@wakamete-plus/shared";
 import { ROLE_SETS } from "../src/role-sets.js";
-import { GameLogStore } from "../src/game-log-store.js";
+import type { GameLogRepository } from "../src/game-log-store.js";
 import { createHttpApp } from "../src/http-app.js";
 
 const servers: ReturnType<typeof createServer>[] = [];
@@ -38,9 +35,7 @@ describe("role set API", () => {
 });
 
 describe("archived game log API", () => {
-  it("returns a saved game log and responds with 404 for an unknown room", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "wakamete-logs-"));
-    const store = new GameLogStore(directory);
+  it("returns the game list, a saved log, and 404 for an unknown room", async () => {
     const archived: ArchivedGameLog = {
       schemaVersion: 1,
       roomId: "room-a",
@@ -70,7 +65,7 @@ describe("archived game log API", () => {
         sentAt: 2_000
       }]
     };
-    await store.save(archived);
+    const store = new MemoryGameLogRepository([archived]);
 
     const server = createServer(createHttpApp("C:\\not-used-by-this-test", store));
     servers.push(server);
@@ -81,11 +76,31 @@ describe("archived game log API", () => {
       throw new Error("テストサーバーのポートを取得できませんでした。");
     }
 
+    const listResponse = await fetch(`http://127.0.0.1:${address.port}/api/logs`);
     const savedResponse = await fetch(`http://127.0.0.1:${address.port}/api/logs/room-a`);
     const missingResponse = await fetch(`http://127.0.0.1:${address.port}/api/logs/unknown`);
 
+    expect(listResponse.status).toBe(200);
+    const { entries: _entries, ...summary } = archived;
+    expect(await listResponse.json()).toEqual([summary]);
     expect(savedResponse.status).toBe(200);
     expect(await savedResponse.json()).toEqual(archived);
     expect(missingResponse.status).toBe(404);
   });
 });
+
+class MemoryGameLogRepository implements GameLogRepository {
+  constructor(private readonly logs: ArchivedGameLog[]) {}
+
+  async save(log: ArchivedGameLog): Promise<void> {
+    this.logs.push(log);
+  }
+
+  async find(roomId: string): Promise<ArchivedGameLog | null> {
+    return this.logs.find((log) => log.roomId === roomId) ?? null;
+  }
+
+  async list(): Promise<ArchivedGameSummary[]> {
+    return this.logs.map(({ entries: _entries, ...game }) => game);
+  }
+}

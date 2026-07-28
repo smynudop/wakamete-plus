@@ -212,6 +212,8 @@ export interface ArchivedGameLog {
   entries: GameLogEntry[];
 }
 
+export type ArchivedGameSummary = Omit<ArchivedGameLog, "entries">;
+
 export interface ClientToServerEvents {
   createRoom: (payload: CreateRoomPayload) => void;
   joinRoom: (payload: JoinRoomPayload) => void;
