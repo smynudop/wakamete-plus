@@ -13,6 +13,13 @@ export const router = createRouter({
     { path: "/role-sets", name: "role-sets", component: RoleSetsPage },
     { path: "/logs", name: "game-logs", component: GameLogsPage },
     { path: "/logs/:roomId", name: "game-log", component: GamePage },
-    { path: "/rooms/:roomId", name: "room", component: GamePage }
+    { path: "/rooms/:roomId", name: "room", component: GamePage },
+    ...(import.meta.env.DEV
+      ? [{
+          path: "/development/game",
+          name: "game-preview",
+          component: () => import("./pages/GamePreviewPage.vue")
+        }]
+      : [])
   ]
 });

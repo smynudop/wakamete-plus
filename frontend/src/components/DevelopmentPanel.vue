@@ -2,7 +2,6 @@
 import type { GamePhase, Role } from "@wakamete-plus/shared";
 
 export interface DevelopmentPreviewState {
-  enabled: boolean;
   joined: boolean;
   role: Role | null;
   phase: GamePhase;
@@ -32,16 +31,7 @@ function update<Key extends keyof DevelopmentPreviewState>(
 <template>
   <aside class="development-panel">
     <h2>UI プレビュー</h2>
-    <label class="development-toggle">
-      <input
-        type="checkbox"
-        :checked="modelValue.enabled"
-        @change="update(modelValue, 'enabled', ($event.target as HTMLInputElement).checked)"
-      />
-      プレビューを有効化
-    </label>
-
-    <div :inert="!modelValue.enabled" class="development-controls">
+    <div class="development-controls">
       <label>
         フェーズ
         <select
@@ -81,7 +71,7 @@ function update<Key extends keyof DevelopmentPreviewState>(
       <label><input type="checkbox" :checked="modelValue.canStart" @change="update(modelValue, 'canStart', ($event.target as HTMLInputElement).checked)" />開始可能</label>
       <label><input type="checkbox" :checked="modelValue.hasDivineResult" @change="update(modelValue, 'hasDivineResult', ($event.target as HTMLInputElement).checked)" />占い結果あり</label>
     </div>
-    <p>開発時のみ表示されます。プレビュー中はサーバーから切断されます。</p>
+    <p>この画面は開発時のみ利用でき、ゲームサーバーには接続しません。</p>
   </aside>
 </template>
 
@@ -110,19 +100,11 @@ p {
   font-size: 12px;
 }
 
-.development-toggle {
-  font-weight: bold;
-}
-
 .development-controls {
   /* display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 10px; */
-}
-
-.development-controls[inert] {
-  opacity: 0.45;
 }
 
 .development-controls label {
