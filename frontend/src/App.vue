@@ -13,7 +13,9 @@ import { RouterLink, RouterView } from "vue-router";
       <RouterLink to="/logs">過去ログ</RouterLink>
     </nav>
   </aside>
-  <RouterView />
+  <main>
+    <RouterView />
+  </main>
   </div>
 </template>
 
@@ -21,7 +23,7 @@ import { RouterLink, RouterView } from "vue-router";
 .container{
   display: grid;
   grid-template-columns: 200px 1fr;
-  min-height: 100vh;
+  height: 100%;
 }
 
 .site-header {
@@ -45,5 +47,9 @@ import { RouterLink, RouterView } from "vue-router";
   color: inherit;
   font-weight: 700;
   text-decoration: none;
+}
+main{
+  height: 100%;
+  overflow-y: auto;
 }
 </style>

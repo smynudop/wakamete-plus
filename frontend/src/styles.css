@@ -11,7 +11,8 @@
 
 body {
   margin: 0;
-  background-color: #f3f3f3;
+  background-color: #f7f7f7;
+  height: 100vh;
   min-height: 100vh;
 }
 body:has(main.nightDiscussion),
@@ -22,7 +23,7 @@ body:has(main.nightAttack)
 }
 
 #app{
-  min-height: 100vh;
+  height: 100%;
 }
 
 .wakamete-back{
@@ -66,23 +67,15 @@ select {
 .app-shell {
   min-height: 100vh;
   padding: 4px;
-  width: min(1120px, 100%);
+  width: min(900px, 100%);
   margin: 0 auto;
 }
 
-.top-bar,
 .layout {
 
   margin: 0 auto 16px;
 }
 
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
-}
 
 h1,
 h2,
@@ -99,17 +92,9 @@ h2 {
   font-size: 16px;
 }
 
-div.bar{
-  font-size: 90%;
-  background-color: #444a50;
-  color: white;
-  padding: 2px;
-  font-weight: bold;
-}
 
-.top-bar p {
-  color: #5f6870;
-}
+
+
 
 .phase {
   display: grid;
@@ -135,19 +120,6 @@ div.bar{
   color: #812929;
 }
 
-.settings-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  align-items: end;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.settings-panel label {
-  display: grid;
-  gap: 4px;
-  color: #5f6870;
-}
 
 .layout {
   display: grid;
@@ -161,8 +133,7 @@ div.bar{
   padding: 4px;
 }
 
-.status-row,
-.chat-form {
+.status-row{
   display: grid;
   grid-template-columns: 1fr auto auto;
   align-items: center;
@@ -178,64 +149,10 @@ div.bar{
   resize: vertical;
 }
 
-.role-box {
-  margin: .5rem 0;
-  padding: .5rem 0;
-}
 
-.players small {
-  color: #5f6870;
-}
 
-.role-box strong {
-  font-size: 24px;
-}
 
-.players {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 90%;
-}
 
-.players li {
-  display: flex;
-  flex-basis: 160px;
-  flex-shrink: none;
-  border-bottom: 1px solid #ede6db;
-  padding: 3px 0;
-}
-
-.players li .icon{
-  border: 1px solid #333;
-}
-
-.players li img{
-  display: block;
-  padding: 2px;
-  width: 32px;
-  height: 32px;
-}
-
-.players li.dead {
-  opacity: 0.55;
-}
-
-.actions {
-  /* display: grid; */
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.chat {
-  /* display: grid;
-  grid-template-rows: 1fr auto; */
-  min-height: 430px;
-  gap: 12px;
-}
 
 .messages {
   overflow: auto;
@@ -274,43 +191,6 @@ div.bar{
   font-style: italic;
 }
 
-.chat-size-strong {
-  font-size: 1.25em;
-  font-weight: 700;
-}
-
-.chat-size-weak {
-  color: #727b80;
-  font-size: 0.85em;
-}
-
-.messages p.event-entry {
-  display: block;
-  border-left: 0.2rem solid #8b938f;
-  padding: 0.25rem 0.75rem;
-  color: #454d49;
-  background: #f3f5f4;
-}
-
-@media (max-width: 760px) {
-  .app-shell {
-    padding: 16px;
-  }
-
-  .top-bar,
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .layout {
-    display: grid;
-  }
-
-  .side-panel,
-  .main-panel {
-    min-height: auto;
-  }
-}
 body {
   margin: 0;
 }

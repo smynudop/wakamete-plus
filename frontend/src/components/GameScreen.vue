@@ -21,6 +21,9 @@ import type { DevelopmentPreviewState } from "./DevelopmentPanel.vue";
 import ActionPanel from "./ActionPanel.vue"
 import JoinPanel from "./JoinPanel.vue";
 import TalkPanel from "./TalkPanel.vue";
+import PlayerPanel from "./PlayerPanel.vue";
+import ChatPanel from "./ChatPanel.vue";
+
 import type { JoinState } from "./JoinPanel.vue";
 import RoomSettingPanel from "./RoomSettingPanel.vue";
 import { roleLabels, roleDescriptions } from "../resource";
@@ -61,13 +64,13 @@ const selectedDivine = ref("");
 const selectedAttack = ref("");
 const selectedGuard = ref("");
 const error = ref("");
-const logEntries = ref<GameLogEntry[]>([]);
+const logEntries = ref<GameLogEntry[]>(props.previewState?.log ?? []);
 const displayLogEntries = computed(() => logEntries.value.toReversed())
 const now = ref(Date.now());
-const state = ref<PublicGameState>({
+const state = ref<PublicGameState>(props.previewState?.gameState || {
   room: {
-    roomName: "【モバマス】ほげほげふがふが村",
-    pr: "初心者でも誰でも歓迎！更新時間23:00",
+    roomName: "",
+    pr: "",
     durationSeconds: {
       dayDiscussion: 180,
       dayVote: 60,
@@ -78,18 +81,18 @@ const state = ref<PublicGameState>({
   },
   phase: "waiting",
   day: 0,
-  players: [
-    { id: "1", name: "初日犠牲者", color: "#9a9690", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-    { id: "2", name: "前川みく", color: "#d94f45", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-    { id: "3", name: "荒木比奈", color: "#2f80c7", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-    { id: "4", name: "安部菜々", color: "#5fa34a", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-    { id: "5", name: "渋谷凛", color: "#5c6bc0", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-    { id: "6", name: "森久保乃々", color: "#8e5bbf", alive: true, connected: true, npc: true, bot: false, gameMaster: false },
-  ],
+  players: [],
   timer: null,
   canStart: false,
   winner: null
 });
+const roomStateString = computed(() => {
+  const room = state.value.room
+  const d = room.durationSeconds
+  const formatSecond = (sec: number) => sec % 60 == 0 ? `${sec/60}分` : `${Math.floor(sec/60)}分${sec%60}秒`
+  return `定員: ${room.playerLimit}人 昼: ${formatSecond(d.dayDiscussion)} 投票: ${formatSecond(d.dayVote)} 夜: ${formatSecond(d.nightDiscussion)} 役職: ${formatSecond(d.nightAttack)}`
+}
+)
 const privateState = ref<PrivateState>({
   playerId: null,
   role: null,
@@ -388,31 +391,12 @@ watch(
     <RouterLink to="/lobby" class="primary-link">ロビーへ戻る</RouterLink>
   </main>
   <main v-else class="app-shell" :class="[state.phase]">
-
-
     <p v-if="archivedGame">このゲームは終了し、ログが保存されています。</p>
     <p v-if="error" class="error">{{ error }}</p>
 
-
-
-    <div class="bar">◆村人たち</div>
-
+    <div class="bar">◆村人たち [生存中 {{ state.players.filter(p => p.alive).length }}人・死亡 {{ state.players.filter(p => !p.alive).length }}人]</div>
     <aside class="side-panel">
-      <ul class="players">
-        <li v-for="player in state.players" :key="player.id" :class="{ dead: !player.alive }">
-          <div class="icon" :style="{ backgroundColor: player.color }">
-            <img :src="player.alive ? `/alive1.gif` : `/grave.gif`" />
-          </div>
-          <div>{{ player.name }}
-            <small>
-              {{ player.alive ? "生存" : "死亡" }}
-              {{ player.gameMaster ? " / GM" : "" }}
-              {{ player.role ? ` / ${roleLabels[player.role]}` : "" }}
-              {{ player.connected || player.npc ? "" : " / 離席" }}
-            </small>
-          </div>
-        </li>
-      </ul>
+      <PlayerPanel :players="state.players"/>
     </aside>
     <template v-if="privateState.role" >
       <div class="bar">◆あなたの情報</div>
@@ -503,36 +487,65 @@ watch(
     <section class="main-panel">
       <section class="top-bar">
         <div>
-          <h1>{{ state.room.roomName }}</h1>
-          <p>{{ state.room.pr }}</p>
-          <p></p>
+          <h1><img src="/village.gif">{{ state.room.roomName }}</h1>
+          <p class="pr">{{ state.room.pr }}</p>
+          <p class="room-setting">
+            <img src="/clock.gif">
+            <span>{{ state.day === 0 ? "1" : `${state.day}` }}</span>日目
+             （{{ roomStateString }}）</p>
         </div>
         <div class="status-row">
-          <span>{{ state.day === 0 ? "開始前" : `${state.day}日目` }}</span>
           <span>{{ phaseLabels[state.phase] }}</span>
           <span v-if="state.phase === 'ended' && remainingSeconds !== null">ルーム終了まで</span>
           <strong v-if="remainingSeconds !== null">{{ remainingSeconds }}s</strong>
         </div>
       </section>
-      <div class="chat">
-        <div class="messages">
-          <p
-            v-for="entry in displayLogEntries"
-            :key="entry.id"
-            :class="entry.kind === 'chat' ? ['message', entry.channel] : ['event-entry', entry.eventType]"
-          >
-            <template v-if="entry.kind === 'chat'">
-              <span :style="{ color: entry.senderColor }"><span>◆</span><strong>{{ entry.senderName }}</strong>さん</span>
-              <span :class="`chat-size-${entry.size}`">「<template
-                v-for="(line, index) in entry.text.split('\n')"
-                :key="index"
-              ><br v-if="index > 0" />{{ line }}</template>」</span>
-            </template>
-            <template v-else>{{ entry.text }}</template>
-          </p>
-        </div>
-      </div>
+      <ChatPanel :logs="displayLogEntries"/>
     </section>
 
   </main>
 </template>
+
+<style scoped>
+
+main.app-shell{
+  font-size: 14px;
+}
+
+div.bar{
+  font-size: 90%;
+  background-color: #26282b;
+  color: white;
+  padding: 2px;
+  font-weight: bold;
+}
+
+.role-box {
+  margin: .25em 0;
+}
+.role-box strong {
+  font-size: 24px;
+}
+
+.actions {
+  /* display: grid; */
+}
+
+.top-bar{
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+.top-bar p.pr {
+  color: #5f6870;
+}
+.top-bar .room-setting > * {
+  vertical-align: baseline;
+}
+.top-bar .room-setting span{
+  font-size: 180%;
+}
+</style>

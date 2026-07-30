@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { GamePhase, Role } from "@wakamete-plus/shared";
-
+import type {
+  PublicGameState,
+  GameLogEntry
+} from "@wakamete-plus/shared";
 export interface DevelopmentPreviewState {
   joined: boolean;
   role: Role | null;
@@ -9,6 +12,8 @@ export interface DevelopmentPreviewState {
   gameMaster: boolean;
   canStart: boolean;
   hasDivineResult: boolean;
+  gameState: PublicGameState;
+  log: GameLogEntry[]
 }
 
 defineProps<{
