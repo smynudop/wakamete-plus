@@ -3,6 +3,7 @@ import {
   DEFAULT_PLAYER_COLOR,
   DEFAULT_ROLE_PROPERTIES,
   FIRST_VICTIM_NAME,
+  GameEventEntry,
   ROLE_PROPERTIES,
   type Role
 } from "@wakamete-plus/shared";
@@ -346,11 +347,13 @@ describe("GameRoom", () => {
     const divineLog = room.divine(seerSocket, divineTarget.id).events[0];
     expect(divineLog?.audience).toBe("private");
     expect(divineLog?.playerId).toBe(seerId);
-    expect(divineLog?.entry.text).toContain("占いました");
+    expect(divineLog?.entry.kind).toBe("event");
+    expect((divineLog?.entry as GameEventEntry).detail.type).toBe("seer");
 
     const attackLog = room.attack(werewolfSocket, firstVictim.id).events[0];
     expect(attackLog?.audience).toBe("werewolves");
-    expect(attackLog?.entry.text).toContain("襲撃先");
+    expect(divineLog?.entry.kind).toBe("event");
+    expect((divineLog?.entry as GameEventEntry).detail.type).toBe("attack");
 
     room.advanceTimer();
     const deathLog = room.advanceTimer().events;
@@ -381,7 +384,7 @@ describe("GameRoom", () => {
 
     const publicTexts = finalEvents
       .filter((event) => event.audience === "public")
-      .map((event) => event.entry.text);
+      .map((event) => ((event.entry as GameEventEntry).detail as any).text);
     expect(publicTexts.some((text) => text.includes(`${target.name} 4票`))).toBe(true);
     expect(publicTexts.some((text) => text === `${target.name} が処刑されました。`)).toBe(true);
   });

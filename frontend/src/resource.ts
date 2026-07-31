@@ -1,5 +1,6 @@
 import type {
   Role,
+  Team,
 } from "@wakamete-plus/shared";
 
 export const roleLabels: Record<Role, string> = {
@@ -15,6 +16,12 @@ export const roleLabels: Record<Role, string> = {
   fanatic: "狂信者",
   immoralist: "背徳者"
 };
+
+export const teamLabels: Record<Team, string> = {
+  villagers: "村人",
+  werewolves: "人狼",
+  fox: "妖狐"
+}
 
 export const roleDescriptions: Record<Role, string> = {
   villager: `ありません。

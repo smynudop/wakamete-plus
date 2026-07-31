@@ -58,8 +58,7 @@ describe("archived game log API", () => {
       entries: [{
         id: "e1",
         kind: "event",
-        eventType: "game",
-        text: "村人陣営の勝利です。",
+        detail: {type: "end", win: "villagers"},
         day: 2,
         phase: "ended",
         sentAt: 2_000

@@ -22,7 +22,7 @@ import {
   type Team,
   type GameWinner,
   type VoteSummary,
-  type EventType
+  type GameEventDetail
 } from "@wakamete-plus/shared";
 import { randomUUID } from "node:crypto";
 import { ROLE_SET_PLAYER_COUNTS, rolesForPlayerCount } from "./role-sets.js";
@@ -233,7 +233,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(socketId, player.id);
-    this.record(`${name} が参加しました。`, "join");
+    this.record({type: "join", sender: player});
     return this.bundle(false, null);
   }
 
@@ -280,7 +280,7 @@ export class GameRoom {
     };
     this.players.set(player.id, player);
     this.socketToPlayer.set(botSocketId, player.id);
-    this.record(`${player.name} が参加しました。`, "join");
+    this.record({type: "join", sender: player});
     return this.bundle(false, null);
   }
 
@@ -305,7 +305,7 @@ export class GameRoom {
     this.assignRoles();
     this.day = 1;
     this.startedAt = this.now();
-    this.record("ゲームを開始しました。", "game");
+    this.record({type: "start"});
     this.setPhase("nightDiscussion");
     return this.bundle(true, null);
   }
@@ -398,7 +398,7 @@ export class GameRoom {
       throw new Error("自分には投票できません。");
     }
     this.votes.set(voter.id, target.id);
-    this.record(`${voter.name} が ${target.name} に投票しました。`, "vote", "private", voter.id);
+    this.record({type:"vote", sender:voter, target}, "private", voter.id);
     const result = this.phase === "dayVote" && this.allLivingHumansActed(this.votes)
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -436,8 +436,7 @@ export class GameRoom {
       this.divinedFoxIds.add(target.id);
     }
     this.record(
-      `${seer.name} が ${target.name} を占いました（${result.result === "werewolf" ? "人狼" : "人間"}）。`,
-      "role",
+      {type: "seer", sender: seer, target, result: result.result},
       "private",
       seer.id
     );
@@ -460,7 +459,7 @@ export class GameRoom {
     }
     this.guardTargetId = target.id;
     this.guardedPlayerIds.add(hunter.id);
-    this.record(`${hunter.name} が ${target.name} を護衛しました。`, "role","private", hunter.id);
+    this.record({type: "hunter", sender:hunter, target,},"private", hunter.id);
     return this.bundle(false, null);
   }
 
@@ -485,7 +484,7 @@ export class GameRoom {
     this.attackTargetId = target.id;
     this.attackerId = werewolf.id;
     this.attackedPlayerIds.add(werewolf.id);
-    this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`,"role", "werewolves");
+    this.record({type: "attack", sender:werewolf, target,}, "werewolves");
     const result = this.phase === "nightAttack" && this.allLivingWerewolvesAttacked()
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
@@ -687,25 +686,32 @@ export class GameRoom {
     for (const targetId of this.votes.values()) {
       counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
     }
-    const resultText = [...counts.entries()]
-      .map(([targetId, count]) => `${this.playerName(targetId)} ${count}票`)
-      .join(", ");
-    this.record(`投票結果: ${resultText || "全員棄権"}`, "vote" ,"public");
+
+    this.record({
+      type: "vote-result", 
+      day: this.day, 
+      result: [...this.votes].map(x => ({
+        player: {id: x[0], name: this.playerName(x[0])},
+        target: {id: x[1], name: this.playerName(x[1])}, 
+        voted: counts.get(x[0]) ?? 0 
+      }))
+    });
+    
     this.votes.clear();
     if (counts.size === 0) {
-      this.record("処刑は行われませんでした。", "vote", "public");
+      //this.record({type: "vote-result", text: "処刑は行われませんでした。"}, "public");
       return true;
     }
 
     const maxVotes = Math.max(...counts.values());
     const candidates = [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id);
     if (candidates.length > 1) {
-      this.record("最多得票者が複数いるため、再投票を行います。", "vote", "public");
+      this.record({type: "re-vote", times: 0}, "public");
       return true;
     }
     const executed = this.requirePlayer(candidates[0]!);
     executed.alive = false;
-    this.record(`${executed.name} が処刑されました。`,"death", "public");
+    this.record({type: "death", reason: "execution", target: executed}, "public");
     for (const medium of this.livingPlayers().filter((player) => player.role === "medium")) {
       medium.mediumResults.push({
         targetId: executed.id,
@@ -717,7 +723,7 @@ export class GameRoom {
     if (executed.role === "cat") {
       const companion = this.pick(this.livingPlayers());
       companion.alive = false;
-      this.record(`${companion.name} が道連れになりました。`, "death", "public");
+      this.record({type: "death", target: companion, reason: "companion"}, "public");
     }
     this.resolveImmoralistDeaths();
     return false;
@@ -741,12 +747,12 @@ export class GameRoom {
       && target.id !== this.guardTargetId
     ) {
       target.alive = false;
-      this.record(`${target.name} が襲撃されました。`, "death", "public");
+      this.record({type: "death", target, reason: "attack"}, "public");
       if (target.role === "cat") {
         const attacker = this.attackerId ? this.players.get(this.attackerId) : undefined;
         if (attacker?.alive) {
           attacker.alive = false;
-          this.record(`${attacker.name} が襲撃されました。`, "death", "public");
+          this.record({type: "death", target: attacker, reason: "attack"}, "public");
         }
       }
     }
@@ -754,7 +760,7 @@ export class GameRoom {
       const fox = this.players.get(foxId);
       if (fox?.alive) {
         fox.alive = false;
-        this.record(`${fox.name} が襲撃されました。`,"death", "public"); // 人狼の死体と同じ文言にしておく
+        this.record({type: "death", target: fox, reason: "attack"}, "public"); // 人狼の死体と同じ文言にしておく
       }
     }
     this.divinedFoxIds.clear();
@@ -785,7 +791,7 @@ export class GameRoom {
     }
     for (const immoralist of this.livingPlayers().filter((player) => player.role === "immoralist")) {
       immoralist.alive = false;
-      this.record(`${immoralist.name} が後追いしました。`, "death", "public");
+      this.record({type: "death", target: immoralist, reason: "follow"}, "public");
     }
   }
 
@@ -799,10 +805,7 @@ export class GameRoom {
       startedAt: endedAt,
       endsAt: this.postGameChatEndsAt
     };
-    const resultText = winner === "draw"
-      ? "4回の投票で処刑者が決まらなかったため、引き分けです。"
-      : `${winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐"}陣営の勝利です。`;
-    this.record(resultText,"game", "public");
+    this.record({type: "end", win: "draw"}, "public");
     return {
       phaseChanged: true,
       gameEnded: {
@@ -839,7 +842,8 @@ export class GameRoom {
       startedAt,
       endsAt: startedAt + this.settings.durationSeconds[phase] * 1000
     };
-    this.record(`${this.day}日目: ${PHASE_LABELS[phase]} が始まりました。`, "progress");
+    const day = this.day
+    this.record({type: "progress", day, phase});
     if (phase === "nightDiscussion") {
       this.runFirstVictimSeerAction();
     }
@@ -952,7 +956,7 @@ export class GameRoom {
     }
     this.socketToPlayer.set(socketId, player.id);
     player.connected = true;
-    this.record(`${player.name} が復帰しました。`, "join");
+    //this.record(`${player.name} が復帰しました。`, "join");
     return this.bundle(false, null);
   }
 
@@ -1021,19 +1025,32 @@ export class GameRoom {
     return this.players.get(playerId)?.name ?? playerId;
   }
 
+  private normalizeEventDetai(d: GameEventDetail): GameEventDetail {
+    const result = {} as GameEventDetail
+    const isTarget = (value: unknown): value is {id: string, name: string} => {
+      return !!(value 
+        && typeof value === "object"
+        && Object.keys(value).includes("id")
+        && Object.keys(value).includes("name"))
+    }
+    for(const key of Object.keys(d) as (keyof GameEventDetail)[]){
+      //@ts-ignore
+      result[key] = isTarget(d[key]) ? {id: d[key].id, name: d[key].name} : d[key]
+    }
+    return result;
+  }
+
   private record(
-    text: string,
-    eventType: EventType,
+    detail: GameEventDetail,
     audience?: GameLogDispatch["audience"],
     playerId?: string
   ): void {
-    this.log.push(text);
+    this.log.push(detail.type);
     const effectiveAudience = audience ?? "public";
     const entry: GameLogEntry = {
       id: `e${++this.logSeq}`,
-      eventType: eventType,
+      detail: this.normalizeEventDetai(detail),
       kind: "event",
-      text,
       day: this.day,
       phase: this.phase,
       sentAt: this.now()

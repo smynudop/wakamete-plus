@@ -72,8 +72,8 @@ describe("RoomManager", () => {
 
     expect(roomA.getState().players.some((player) => player.bot)).toBe(true);
     expect(roomB.getState().players.some((player) => player.bot)).toBe(false);
-    expect(roomA.getPrivateState("creator-a").log.some((entry) => entry.text === "一番村だけの発言")).toBe(true);
-    expect(roomB.getPrivateState("creator-b").log.some((entry) => entry.text === "一番村だけの発言")).toBe(false);
+    expect(roomA.getPrivateState("creator-a").log.some((entry) => entry.kind === "chat" && entry.text === "一番村だけの発言")).toBe(true);
+    expect(roomB.getPrivateState("creator-b").log.some((entry) => entry.kind === "chat" && entry.text === "一番村だけの発言")).toBe(false);
   });
 
   it("requires room membership for game actions and one room per socket", () => {

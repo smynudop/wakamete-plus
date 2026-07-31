@@ -142,7 +142,6 @@ export interface PublicGameState {
   canStart: boolean;
   winner: GameWinner | null;
 }
-export type EventType = "join" | "role" | "vote" | "game" | "progress" | "death"
 export type GameLogEntry  = GameChatEntry | GameEventEntry
 
 type GameChatEntry = {
@@ -159,11 +158,24 @@ type GameChatEntry = {
   size: ChatSize;
 }
 
+export type GameEventPlayer = {id: string, name: string}
+export type GameEventDetail = 
+ | {type: "join", sender: GameEventPlayer}
+ | {type: "seer", sender: GameEventPlayer, target: GameEventPlayer, result: string}
+ | {type: "hunter", sender: GameEventPlayer, target: GameEventPlayer }
+ | {type: "attack", sender: GameEventPlayer, target: GameEventPlayer}
+ | {type: "vote", sender: GameEventPlayer, target: GameEventPlayer}
+ | {type: "vote-result", day: number, result: {player: GameEventPlayer, target: GameEventPlayer, voted: number}[]}
+ | {type: "re-vote", times: number}
+ | {type: "start"}
+ | {type: "end", win: Team | "draw"}
+ | {type: "progress", day: number, phase: GamePhase}
+ | {type: "death", target: GameEventPlayer, reason: string}
+
 export type GameEventEntry = {
   id: string;
   kind: "event";
-  eventType: EventType
-  text: string;
+  detail: GameEventDetail
   day: number;
   phase: GamePhase;
   sentAt: number;
