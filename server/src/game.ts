@@ -20,6 +20,7 @@ import {
   type Role,
   type RoomSettings,
   type Team,
+  type GameWinner,
   type VoteSummary,
   type EventType
 } from "@wakamete-plus/shared";
@@ -120,7 +121,10 @@ const ROLE_LABELS: Record<Role, string> = {
   medium: "霊能者",
   hunter: "狩人",
   shared: "共有者",
-  fox: "妖狐"
+  fox: "妖狐",
+  cat: "猫又",
+  fanatic: "狂信者",
+  immoralist: "背徳者"
 };
 
 const PHASE_LABELS: Record<GamePhase, string> = {
@@ -139,7 +143,9 @@ export class GameRoom {
   private day = 0;
   private timer: PhaseTimer | null = null;
   private votes = new Map<string, string>();
+  private voteRound = 0;
   private attackTargetId: string | null = null;
+  private attackerId: string | null = null;
   private guardTargetId: string | null = null;
   private attackedPlayerIds = new Set<string>();
   private guardedPlayerIds = new Set<string>();
@@ -152,7 +158,7 @@ export class GameRoom {
   private log: string[] = [];
   private history: { entry: GameLogEntry; audience: GameLogDispatch["audience"]; playerId?: string }[] = [];
   private pendingEvents: GameLogDispatch[] = [];
-  private winner: Team | null = null;
+  private winner: GameWinner | null = null;
   private startedAt: number | null = null;
   private endedAt: number | null = null;
   private postGameChatEndsAt: number | null = null;
@@ -477,9 +483,10 @@ export class GameRoom {
       throw new Error("人狼は襲撃対象にできません。");
     }
     this.attackTargetId = target.id;
+    this.attackerId = werewolf.id;
     this.attackedPlayerIds.add(werewolf.id);
     this.record(`${werewolf.name} が襲撃先を ${target.name} に選びました。`,"role", "werewolves");
-    const result = this.phase === "nightAttack"
+    const result = this.phase === "nightAttack" && this.allLivingWerewolvesAttacked()
       ? this.resolveCurrentPhase()
       : { phaseChanged: false, gameEnded: null };
     return this.bundle(result.phaseChanged, result.gameEnded);
@@ -565,6 +572,11 @@ export class GameRoom {
             .filter((candidate) => candidate.role === "shared" && candidate.id !== player.id)
             .map((candidate) => candidate.id)
         : [],
+      knownWerewolfPlayerIds: player?.role && ROLE_PROPERTIES[player.role].knowsWerewolves
+        ? [...this.players.values()]
+            .filter((candidate) => candidate.role === "werewolf")
+            .map((candidate) => candidate.id)
+        : [],
       log: player ? this.visibleHistory(player) : this.publicHistory(),
       sessionToken: player?.sessionToken ?? null
     };
@@ -634,7 +646,15 @@ export class GameRoom {
     }
 
     if (this.phase === "dayVote") {
-      this.resolveVote();
+      this.voteRound += 1;
+      const tied = this.resolveVote();
+      if (tied) {
+        if (this.voteRound >= 4) {
+          return this.endGame("draw");
+        }
+        this.setPhase("dayVote");
+        return { phaseChanged: true, gameEnded: null };
+      }
       const winner = this.checkWinner();
       if (winner) {
         return this.endGame(winner);
@@ -662,7 +682,7 @@ export class GameRoom {
     return { phaseChanged: false, gameEnded: null };
   }
 
-  private resolveVote(): void {
+  private resolveVote(): boolean {
     const counts = new Map<string, number>();
     for (const targetId of this.votes.values()) {
       counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
@@ -674,12 +694,16 @@ export class GameRoom {
     this.votes.clear();
     if (counts.size === 0) {
       this.record("処刑は行われませんでした。", "vote", "public");
-      return;
+      return true;
     }
 
     const maxVotes = Math.max(...counts.values());
     const candidates = [...counts.entries()].filter(([, count]) => count === maxVotes).map(([id]) => id);
-    const executed = this.requirePlayer(this.pick(candidates));
+    if (candidates.length > 1) {
+      this.record("最多得票者が複数いるため、再投票を行います。", "vote", "public");
+      return true;
+    }
+    const executed = this.requirePlayer(candidates[0]!);
     executed.alive = false;
     this.record(`${executed.name} が処刑されました。`,"death", "public");
     for (const medium of this.livingPlayers().filter((player) => player.role === "medium")) {
@@ -690,6 +714,13 @@ export class GameRoom {
         day: this.day
       });
     }
+    if (executed.role === "cat") {
+      const companion = this.pick(this.livingPlayers());
+      companion.alive = false;
+      this.record(`${companion.name} が道連れになりました。`, "death", "public");
+    }
+    this.resolveImmoralistDeaths();
+    return false;
   }
 
   private resolveAttack(): void {
@@ -711,6 +742,13 @@ export class GameRoom {
     ) {
       target.alive = false;
       this.record(`${target.name} が襲撃されました。`, "death", "public");
+      if (target.role === "cat") {
+        const attacker = this.attackerId ? this.players.get(this.attackerId) : undefined;
+        if (attacker?.alive) {
+          attacker.alive = false;
+          this.record(`${attacker.name} が襲撃されました。`, "death", "public");
+        }
+      }
     }
     for (const foxId of this.divinedFoxIds) {
       const fox = this.players.get(foxId);
@@ -720,6 +758,7 @@ export class GameRoom {
       }
     }
     this.divinedFoxIds.clear();
+    this.resolveImmoralistDeaths();
     this.guardTargetId = null;
   }
 
@@ -737,7 +776,20 @@ export class GameRoom {
     ) ? "fox" : baseWinner;
   }
 
-  private endGame(winner: Team): PhaseActionResult {
+  private resolveImmoralistDeaths(): void {
+    const foxAlive = this.livingPlayers().some(
+      (player) => ROLE_PROPERTIES[this.requireRole(player)].species === "fox"
+    );
+    if (foxAlive) {
+      return;
+    }
+    for (const immoralist of this.livingPlayers().filter((player) => player.role === "immoralist")) {
+      immoralist.alive = false;
+      this.record(`${immoralist.name} が後追いしました。`, "death", "public");
+    }
+  }
+
+  private endGame(winner: GameWinner): PhaseActionResult {
     const endedAt = this.now();
     this.winner = winner;
     this.phase = "ended";
@@ -747,8 +799,10 @@ export class GameRoom {
       startedAt: endedAt,
       endsAt: this.postGameChatEndsAt
     };
-    const winnerLabel = winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐";
-    this.record(`${winnerLabel}陣営の勝利です。`,"game", "public");
+    const resultText = winner === "draw"
+      ? "4回の投票で処刑者が決まらなかったため、引き分けです。"
+      : `${winner === "villagers" ? "村人" : winner === "werewolves" ? "人狼" : "妖狐"}陣営の勝利です。`;
+    this.record(resultText,"game", "public");
     return {
       phaseChanged: true,
       gameEnded: {
@@ -771,9 +825,11 @@ export class GameRoom {
     this.phase = phase;
     if (phase === "dayDiscussion") {
       this.votes.clear();
+      this.voteRound = 0;
     }
     if (phase === "nightDiscussion") {
       this.attackTargetId = null;
+      this.attackerId = null;
       this.guardTargetId = null;
       this.attackedPlayerIds.clear();
       this.guardedPlayerIds.clear();
@@ -817,7 +873,9 @@ export class GameRoom {
 
     const humans = this.shuffle(this.humanPlayers());
     const roles = rolesForPlayerCount(humans.length + 1);
-    const firstVictimRoles = roles.filter((role) => ROLE_PROPERTIES[role].species === "human");
+    const firstVictimRoles = roles.filter(
+      (role) => ROLE_PROPERTIES[role].species === "human" && role !== "cat"
+    );
     const firstVictimRole = this.pick(firstVictimRoles);
     const firstVictimRoleIndex = roles.indexOf(firstVictimRole);
     roles.splice(firstVictimRoleIndex, 1);
@@ -866,6 +924,12 @@ export class GameRoom {
 
   private allLivingHumansActed(actions: Map<string, string>): boolean {
     return this.livingPlayers().filter((player) => !player.npc).every((player) => actions.has(player.id));
+  }
+
+  private allLivingWerewolvesAttacked(): boolean {
+    return this.livingPlayers()
+      .filter((player) => player.role === "werewolf")
+      .every((player) => this.attackedPlayerIds.has(player.id));
   }
 
   private voteSummary(): VoteSummary[] {
@@ -1034,7 +1098,8 @@ export class GameRoom {
   }
 
   private botActionKey(player: Player): string {
-    return `${this.day}:${this.phase}:${player.id}`;
+    const ballot = this.phase === "dayVote" ? `:${this.voteRound}` : "";
+    return `${this.day}:${this.phase}${ballot}:${player.id}`;
   }
 
   private shuffle<T>(items: T[]): T[] {

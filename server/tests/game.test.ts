@@ -54,11 +54,15 @@ function playerIdForSocket(bundle: ReturnType<GameRoom["start"]>, socketId: stri
 
 describe("GameRoom", () => {
   it("defines role properties using human villager defaults", () => {
-    expect(DEFAULT_ROLE_PROPERTIES).toEqual({ species: "human", side: "villagers" });
+    expect(DEFAULT_ROLE_PROPERTIES).toEqual({ species: "human", side: "villagers", knowsWerewolves: false });
     expect(ROLE_PROPERTIES.villager).toEqual(DEFAULT_ROLE_PROPERTIES);
-    expect(ROLE_PROPERTIES.madman).toEqual({ species: "human", side: "werewolves" });
-    expect(ROLE_PROPERTIES.werewolf).toEqual({ species: "werewolf", side: "werewolves" });
-    expect(ROLE_PROPERTIES.fox).toEqual({ species: "fox", side: "fox" });
+    expect(ROLE_PROPERTIES.madman).toEqual({ species: "human", side: "werewolves", knowsWerewolves: false });
+    expect(ROLE_PROPERTIES.werewolf).toEqual({
+      species: "werewolf",
+      side: "werewolves",
+      knowsWerewolves: true
+    });
+    expect(ROLE_PROPERTIES.fox).toEqual({ species: "fox", side: "fox", knowsWerewolves: false });
   });
 
   it("has the first victim before players join the room", () => {
@@ -425,7 +429,7 @@ describe("GameRoom", () => {
     expect(afterVote?.alive).toBe(false);
   });
 
-  it("resolves tied votes by executing one of the tied targets", () => {
+  it("resets tied votes without executing a player", () => {
     const { room, sockets } = createStartedRoom();
     room.advanceTimer();
     room.advanceTimer();
@@ -441,8 +445,28 @@ describe("GameRoom", () => {
     const executedIds = room.getState().players
       .filter((player) => !player.npc && !player.alive)
       .map((player) => player.id);
-    expect(executedIds).toHaveLength(1);
-    expect([targetA.id, targetB.id]).toContain(executedIds[0]);
+    expect(executedIds).toHaveLength(0);
+    expect(room.getState().phase).toBe("dayVote");
+  });
+
+  it("ends in a draw after four tied ballots", () => {
+    const { room, sockets } = createStartedRoom();
+    room.advanceTimer();
+    room.advanceTimer();
+    room.advanceTimer();
+    const players = room.getState().players.filter((player) => !player.npc);
+
+    let ended: ReturnType<GameRoom["vote"]>["ended"] = null;
+    for (let round = 0; round < 4; round += 1) {
+      const targets = [players[1]!, players[0]!, players[0]!, players[1]!, players[2]!];
+      for (const [index, socketId] of sockets.entries()) {
+        ended = room.vote(socketId, targets[index]!.id).ended;
+      }
+    }
+
+    expect(ended?.winner).toBe("draw");
+    expect(room.getState().phase).toBe("ended");
+    expect(room.getState().players.filter((player) => !player.npc && !player.alive)).toHaveLength(0);
   });
 
   it("forces the first night attack to the first victim", () => {
@@ -561,7 +585,7 @@ describe("GameRoom", () => {
   });
 
   it("assigns and exposes all additional roles in a configured expanded room", () => {
-    const room = new GameRoom();
+    const room = new GameRoom(() => Date.now(), DEFAULT_ROOM_SETTINGS, undefined, () => 0);
     room.create("s1", { name: "player1" });
     room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });
     for (let index = 0; index < 15; index += 1) {
@@ -570,11 +594,47 @@ describe("GameRoom", () => {
 
     const started = room.start("s1");
     const roles = room.getDebugPlayersForTests().map((player) => player.role);
-    expect(roles).toEqual(expect.arrayContaining(["medium", "hunter", "shared", "fox"]));
+    expect(roles).toEqual(expect.arrayContaining([
+      "medium",
+      "hunter",
+      "shared",
+      "fox",
+      "cat",
+      "fanatic",
+      "immoralist"
+    ]));
     expect(roles.filter((role) => role === "shared")).toHaveLength(2);
 
     const sharedState = [...started.privateStates.values()].find((state) => state.role === "shared");
     expect(sharedState?.sharedPlayerIds).toHaveLength(1);
+    const fanaticState = [...started.privateStates.values()].find((state) => state.role === "fanatic");
+    expect(fanaticState?.knownWerewolfPlayerIds).toHaveLength(3);
+    expect([...started.privateStates.values()].find((state) => state.role === "villager")?.knownWerewolfPlayerIds)
+      .toHaveLength(0);
+  });
+
+  it("makes an executed cat take one living player with it", () => {
+    const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, undefined, () => 0);
+    room.create("s1", { name: "player1" });
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });
+    for (let index = 0; index < 15; index += 1) {
+      room.addBot("s1");
+    }
+    const started = room.start("s1");
+    const catSocket = socketForRole(started, "cat");
+    const catId = playerIdForSocket(started, catSocket);
+    room.advanceTimer();
+    room.advanceTimer();
+    room.advanceTimer();
+
+    for (const [socketId, state] of started.privateStates) {
+      const targetId = state.playerId === catId
+        ? started.privateStates.get(socketForRole(started, "werewolf"))!.playerId!
+        : catId;
+      room.vote(socketId, targetId);
+    }
+
+    expect(room.getState().players.filter((player) => !player.alive)).toHaveLength(3);
   });
 
   it("kills a divined fox at dawn while foxes survive attacks", () => {

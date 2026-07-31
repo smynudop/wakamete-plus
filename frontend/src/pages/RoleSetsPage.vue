@@ -11,9 +11,12 @@ const roleOrder: Role[] = [
   "medium",
   "hunter",
   "shared",
+  "cat",
   "werewolf",
   "madman",
-  "fox"
+  "fanatic",
+  "fox",
+  "immoralist"
 ];
 const roleSets = ref<Record<string, RoleSet>>({});
 const error = ref("");

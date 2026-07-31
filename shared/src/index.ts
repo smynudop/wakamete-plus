@@ -23,18 +23,24 @@ export type Role =
   | "medium"
   | "hunter"
   | "shared"
-  | "fox";
+  | "fox"
+  | "cat"
+  | "fanatic"
+  | "immoralist";
 export type Team = "villagers" | "werewolves" | "fox";
+export type GameWinner = Team | "draw";
 export type Species = "human" | "werewolf" | "fox";
 
 export interface RoleProperties {
   species: Species;
   side: Team;
+  knowsWerewolves: boolean;
 }
 
 export const DEFAULT_ROLE_PROPERTIES: Readonly<RoleProperties> = {
   species: "human",
-  side: "villagers"
+  side: "villagers",
+  knowsWerewolves: false
 };
 
 function roleProperties(overrides: Partial<RoleProperties> = {}): Readonly<RoleProperties> {
@@ -44,12 +50,15 @@ function roleProperties(overrides: Partial<RoleProperties> = {}): Readonly<RoleP
 export const ROLE_PROPERTIES: Readonly<Record<Role, Readonly<RoleProperties>>> = {
   villager: roleProperties(),
   seer: roleProperties(),
-  werewolf: roleProperties({ species: "werewolf", side: "werewolves" }),
+  werewolf: roleProperties({ species: "werewolf", side: "werewolves", knowsWerewolves: true }),
   madman: roleProperties({ side: "werewolves" }),
   medium: roleProperties(),
   hunter: roleProperties(),
   shared: roleProperties(),
-  fox: roleProperties({ species: "fox", side: "fox" })
+  fox: roleProperties({ species: "fox", side: "fox" }),
+  cat: roleProperties(),
+  fanatic: roleProperties({ side: "werewolves", knowsWerewolves: true }),
+  immoralist: roleProperties({ side: "fox" })
 };
 
 export type GamePhase =
@@ -131,7 +140,7 @@ export interface PublicGameState {
   players: PublicPlayer[];
   timer: PhaseTimer | null;
   canStart: boolean;
-  winner: Team | null;
+  winner: GameWinner | null;
 }
 export type EventType = "join" | "role" | "vote" | "game" | "progress" | "death"
 export type GameLogEntry  = GameChatEntry | GameEventEntry
@@ -150,7 +159,7 @@ type GameChatEntry = {
   size: ChatSize;
 }
 
-type GameEventEntry = {
+export type GameEventEntry = {
   id: string;
   kind: "event";
   eventType: EventType
@@ -180,6 +189,7 @@ export interface PrivateState {
   divineResults: DivineResult[];
   mediumResults: MediumResult[];
   sharedPlayerIds: string[];
+  knownWerewolfPlayerIds: string[];
   log: GameLogEntry[];
   sessionToken: string | null;
 }
@@ -198,7 +208,7 @@ export interface ChatMessage {
 }
 
 export interface GameEndPayload {
-  winner: Team;
+  winner: GameWinner;
   players: (Required<Pick<PublicPlayer, "id" | "name" | "color" | "alive" | "npc" | "role">> & {
     handleName: string;
   })[];
@@ -212,7 +222,7 @@ export interface ArchivedGameLog {
   startedAt: number;
   endedAt: number;
   closedAt: number;
-  winner: Team;
+  winner: GameWinner;
   players: GameEndPayload["players"];
   entries: GameLogEntry[];
 }

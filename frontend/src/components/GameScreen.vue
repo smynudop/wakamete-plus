@@ -99,6 +99,7 @@ const privateState = ref<PrivateState>({
   divineResults: [],
   mediumResults: [],
   sharedPlayerIds: [],
+  knownWerewolfPlayerIds: [],
   log: [],
   sessionToken: null
 });
@@ -188,6 +189,9 @@ const divineTargets = computed(() => livingTargets.value);
 const guardTargets = computed(() => livingTargets.value);
 const sharedPlayers = computed(() =>
   state.value.players.filter((player) => privateState.value.sharedPlayerIds.includes(player.id))
+);
+const knownWerewolves = computed(() =>
+  state.value.players.filter((player) => privateState.value.knownWerewolfPlayerIds.includes(player.id))
 );
 const attackTargets = computed(() => {
   if (state.value.day === 1) {
@@ -371,6 +375,7 @@ watch(
       sessionToken: null,
       mediumResults: [],
       sharedPlayerIds: [],
+      knownWerewolfPlayerIds: [],
       log: [],
       divineResults: preview.hasDivineResult
         ? [{ targetId: "3", targetName: "荒木比奈", result: "human", day: 1 }]
@@ -416,6 +421,9 @@ watch(
         </div>
         <p v-if="privateState.role === 'shared'">
           【共有者】{{ sharedPlayers.map((player) => player.name).join("、") }}
+        </p>
+        <p v-if="privateState.knownWerewolfPlayerIds.length > 0">
+          人狼: {{ knownWerewolves.map((player) => player.name).join("、") }}
         </p>
       </div>
 

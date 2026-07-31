@@ -22,6 +22,9 @@ onMounted(async () => {
 });
 
 function winnerLabel(winner: ArchivedGameSummary["winner"]): string {
+  if (winner === "draw") {
+    return "引き分け";
+  }
   if (winner === "villagers") {
     return "村人陣営";
   }
@@ -50,7 +53,7 @@ function formatDate(timestamp: number): string {
         <RouterLink :to="{ name: 'game-log', params: { roomId: game.roomId } }">
           <strong>{{ game.room.roomName }}</strong>
           <span>{{ formatDate(game.endedAt) }}</span>
-          <span>{{ winnerLabel(game.winner) }}の勝利</span>
+          <span>{{ game.winner === "draw" ? winnerLabel(game.winner) : `${winnerLabel(game.winner)}の勝利` }}</span>
           <span>{{ game.players.length }}人</span>
         </RouterLink>
       </li>

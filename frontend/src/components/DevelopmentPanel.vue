@@ -67,6 +67,9 @@ function update<Key extends keyof DevelopmentPreviewState>(
           <option value="hunter">狩人</option>
           <option value="shared">共有者</option>
           <option value="fox">妖狐</option>
+          <option value="cat">猫又</option>
+          <option value="fanatic">狂信者</option>
+          <option value="immoralist">背徳者</option>
         </select>
       </label>
 

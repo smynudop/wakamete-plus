@@ -10,7 +10,10 @@ export const roleLabels: Record<Role, string> = {
   medium: "霊能者",
   hunter: "狩人",
   shared: "共有者",
-  fox: "妖狐"
+  fox: "妖狐",
+  cat: "猫又",
+  fanatic: "狂信者",
+  immoralist: "背徳者"
 };
 
 export const roleDescriptions: Record<Role, string> = {
@@ -27,5 +30,8 @@ export const roleDescriptions: Record<Role, string> = {
   medium: "処刑された人物が人間か人狼かを知ることができます。",
   hunter: "夜に一人を護衛し、人狼の襲撃から守ることができます。",
   shared: "他の共有者がわかり、夜に共有者同士で会話できます。",
-  fox: "第三陣営です。襲撃では死亡しませんが、占われると翌朝死亡します。"
+  fox: "第三陣営です。襲撃では死亡しませんが、占われると翌朝死亡します。",
+  cat: "襲撃されると襲撃者と相打ちになり、処刑されると生存者を一人道連れにします。",
+  fanatic: "人狼陣営です。村にいる人狼が誰なのか常にわかります。",
+  immoralist: "妖狐陣営です。生存する妖狐がいなくなると後追いします。"
 };
