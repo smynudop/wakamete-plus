@@ -392,7 +392,7 @@ describe("GameRoom", () => {
     const firstVictim = room.getDebugPlayersForTests().find((player) => player.name === FIRST_VICTIM_NAME);
 
     for (const [role, count] of Object.entries(ROLE_SETS[6]!)) {
-      expect(roles.filter((assignedRole) => assignedRole === role)).toHaveLength(count);
+      expect(roles.filter((assignedRole) => assignedRole === role)).toHaveLength(count as number);
     }
     expect(firstVictim?.role).toBe("villager");
     expect(room.getState().players).toHaveLength(6);
@@ -587,8 +587,8 @@ describe("GameRoom", () => {
   it("assigns and exposes all additional roles in a configured expanded room", () => {
     const room = new GameRoom(() => Date.now(), DEFAULT_ROOM_SETTINGS, undefined, () => 0);
     room.create("s1", { name: "player1" });
-    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });
-    for (let index = 0; index < 15; index += 1) {
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 19 });
+    for (let index = 0; index < 17; index += 1) {
       room.addBot("s1");
     }
 
@@ -608,7 +608,7 @@ describe("GameRoom", () => {
     const sharedState = [...started.privateStates.values()].find((state) => state.role === "shared");
     expect(sharedState?.sharedPlayerIds).toHaveLength(1);
     const fanaticState = [...started.privateStates.values()].find((state) => state.role === "fanatic");
-    expect(fanaticState?.knownWerewolfPlayerIds).toHaveLength(3);
+    expect(fanaticState?.knownWerewolfPlayerIds).toHaveLength(4);
     expect([...started.privateStates.values()].find((state) => state.role === "villager")?.knownWerewolfPlayerIds)
       .toHaveLength(0);
   });
@@ -616,8 +616,8 @@ describe("GameRoom", () => {
   it("makes an executed cat take one living player with it", () => {
     const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, undefined, () => 0);
     room.create("s1", { name: "player1" });
-    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 17 });
-    for (let index = 0; index < 15; index += 1) {
+    room.updateRoomSettings("s1", { ...DEFAULT_ROOM_SETTINGS, playerLimit: 18 });
+    for (let index = 0; index < 16; index += 1) {
       room.addBot("s1");
     }
     const started = room.start("s1");

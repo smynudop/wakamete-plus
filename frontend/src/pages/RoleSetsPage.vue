@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import type { Role } from "@wakamete-plus/shared";
 import { roleLabels } from "../resource";
 
-type RoleSet = Record<Role, number>;
+type RoleSet = Record<Role, number> & {desc: string};
 
 const roleOrder: Role[] = [
   "villager",
@@ -53,12 +53,14 @@ void fetch("/api/role-sets")
         <thead>
           <tr>
             <th scope="col">人数</th>
+            <th>メモ</th>
             <th v-for="role in roleOrder" :key="role" scope="col">{{ roleLabels[role] }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="[playerCount, roleSet] in rows" :key="playerCount">
             <th scope="row">{{ playerCount }}人</th>
+            <th>{{roleSet.desc}}</th>
             <td v-for="role in roleOrder" :key="role">{{ roleSet[role] }}</td>
           </tr>
         </tbody>

@@ -5,7 +5,7 @@ describe("ROLE_SETS", () => {
   it.each(Object.entries(ROLE_SETS))(
     "%s人用配役の合計が参加人数と一致する",
     (playerCount, roleSet) => {
-      const total = Object.values(roleSet).reduce((sum, count) => sum + count, 0);
+      const total = Object.values(roleSet).filter(x => typeof x === "number").reduce((sum, count) => sum + count, 0);
       expect(total).toBe(Number(playerCount));
       expect(rolesForPlayerCount(Number(playerCount))).toHaveLength(Number(playerCount));
       expect(roleSet.villager).toBeGreaterThanOrEqual(1);
