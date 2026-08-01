@@ -43,7 +43,7 @@ function formatDate(timestamp: number): string {
 </script>
 
 <template>
-  <main class="logs-page">
+  <main class="logs-page wakamete-back">
     <h1>過去ログ</h1>
     <p v-if="loading">読み込んでいます。</p>
     <p v-else-if="error" class="error">{{ error }}</p>

@@ -91,9 +91,8 @@ function createRoom() {
 </script>
 
 <template>
-  <main class="page-shell lobby-page">
+  <main class="page-shell lobby-page wakamete-back">
     <header class="page-heading">
-      <p class="eyebrow">公開ルーム</p>
       <h1>ロビー</h1>
       <p>募集中の村を選ぶか、新しい村を作成してください。</p>
     </header>

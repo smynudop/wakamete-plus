@@ -40,9 +40,8 @@ void fetch("/api/role-sets")
 </script>
 
 <template>
-  <main class="page-shell role-sets-page">
+  <main class="page-shell role-sets-page wakamete-back">
     <header class="page-heading">
-      <p class="eyebrow">公開情報</p>
       <h1>配役表</h1>
       <p>人数には初日犠牲者を含みます。村人欄のうち1名が初日犠牲者です。</p>
     </header>

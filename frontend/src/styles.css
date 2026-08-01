@@ -66,19 +66,8 @@ select {
   color: #1d232a;
 }
 
-h1,
-h2,
 p {
   margin: 0;
-}
-
-h1 {
-  font-size: 1.5rem;
-}
-
-h2 {
-  margin-bottom: 10px;
-  font-size: 16px;
 }
 
 .error {
@@ -91,20 +80,9 @@ h2 {
 }
 
 .page-shell {
-  width: min(70rem, calc(100% - 2rem));
+  width: 100%;
   margin: 0 auto;
-  padding: 3rem 0;
-}
-
-.hero {
-  max-width: 42rem;
-  padding: 4rem 0;
-}
-
-.hero h1,
-.page-heading h1 {
-  margin: 0.2rem 0 1rem;
-  font-size: clamp(2rem, 6vw, 4rem);
+  padding: 1rem;
 }
 
 .eyebrow {

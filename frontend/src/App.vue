@@ -8,7 +8,7 @@ import { RouterLink, RouterView } from "vue-router";
     <RouterLink to="/" class="site-title">わかめて+</RouterLink>
     <nav>
       <RouterLink to="/">トップ</RouterLink>
-      <RouterLink to="/lobby">ロビー</RouterLink>
+      <RouterLink to="/lobby">ログイン/村民登録</RouterLink>
       <RouterLink to="/role-sets">配役表</RouterLink>
       <RouterLink to="/logs">過去ログ</RouterLink>
     </nav>
