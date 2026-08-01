@@ -805,7 +805,7 @@ export class GameRoom {
       startedAt: endedAt,
       endsAt: this.postGameChatEndsAt
     };
-    this.record({type: "end", win: "draw"}, "public");
+    this.record({type: "end", win: winner}, "public");
     return {
       phaseChanged: true,
       gameEnded: {

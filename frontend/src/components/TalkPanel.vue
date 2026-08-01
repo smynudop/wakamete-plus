@@ -77,6 +77,7 @@ select{
   grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: .5em;
+  margin: .25em 0;
 }
 
 .size-buttons {
@@ -104,5 +105,14 @@ select{
 .talk{
     min-width: 6em;
     height: 100%;
+}
+
+.chat-form:has(select) {
+  grid-template-columns: minmax(120px, auto) 1fr auto auto;
+}
+
+.chat-form textarea {
+  min-height: 4.5rem;
+  resize: vertical;
 }
 </style>

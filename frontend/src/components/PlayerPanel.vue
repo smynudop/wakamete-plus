@@ -50,9 +50,12 @@ const props = defineProps<{
   display: flex;
   flex-basis: 160px;
   flex-shrink: none;
-  border-bottom: 1px solid #ede6db;
+  /* border-top: 2px solid #ede6db; */
   padding: 3px 0;
   gap: .25em;
+}
+.players li.disconnected{
+    /* border-top-color: rgb(233, 113, 113); */
 }
 
 .players li .icon{
@@ -70,9 +73,7 @@ const props = defineProps<{
   opacity: 0.55;
 }
 
-.disconnected{
-    background-color: rgb(255, 188, 188);
-}
+
 
 .game-master::after{
 content: "GM";

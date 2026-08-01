@@ -7,7 +7,7 @@ import type {
   ChatChannel,
   ChatSize,
   ArchivedGameLog,
-  DivineResult,
+
   GameLogEntry,
   PrivateState,
   PublicGameState,
@@ -23,10 +23,12 @@ import JoinPanel from "./JoinPanel.vue";
 import TalkPanel from "./TalkPanel.vue";
 import PlayerPanel from "./PlayerPanel.vue";
 import ChatPanel from "./ChatPanel.vue";
+import RoleBoxPanel from "./RoleBoxPanel.vue";
 
 import type { JoinState } from "./JoinPanel.vue";
 import RoomSettingPanel from "./RoomSettingPanel.vue";
-import { roleLabels, roleDescriptions } from "../resource";
+import { preview } from "vite";
+
 const props = defineProps<{
   previewState?: DevelopmentPreviewState;
 }>();
@@ -187,12 +189,7 @@ const livingTargets = computed(() => state.value.players.filter((player) => play
 const voteTargets = computed(() => livingTargets.value.filter((player) => !player.npc));
 const divineTargets = computed(() => livingTargets.value);
 const guardTargets = computed(() => livingTargets.value);
-const sharedPlayers = computed(() =>
-  state.value.players.filter((player) => privateState.value.sharedPlayerIds.includes(player.id))
-);
-const knownWerewolves = computed(() =>
-  state.value.players.filter((player) => privateState.value.knownWerewolfPlayerIds.includes(player.id))
-);
+
 const attackTargets = computed(() => {
   if (state.value.day === 1) {
     return state.value.players.filter((player) => player.name === "初日犠牲者" && player.alive);
@@ -200,6 +197,7 @@ const attackTargets = computed(() => {
   return state.value.players.filter((player) => player.alive && player.id !== privateState.value.playerId);
 });
 const remainingSeconds = computed(() => {
+  if(props.previewState != null) return 123;
   if (!state.value.timer) {
     return null;
   }
@@ -346,9 +344,6 @@ function guard() {
   socket.emit("guard", { targetId: selectedGuard.value });
 }
 
-function formatDivine(result: DivineResult) {
-  return `${result.day}日目: ${result.targetName} は ${result.result === "werewolf" ? "人狼" : "人間"}`;
-}
 
 watch(
   () => props.previewState,
@@ -367,7 +362,7 @@ watch(
       timer: null,
       players: state.value.players.map((player) => player.id === previewPlayerId
         ? { ...player, alive: preview.alive, gameMaster: preview.gameMaster }
-        : player)
+        : player),
     };
     privateState.value = {
       playerId: preview.joined ? previewPlayerId : null,
@@ -387,6 +382,7 @@ watch(
 </script>
 
 <template>
+  <div class="game-container" :class="[state.phase]">
   <main v-if="archiveLookupPending" class="page-shell missing-room">
     <h1>ゲームログを読み込んでいます</h1>
   </main>
@@ -395,7 +391,7 @@ watch(
     <p>指定された村は存在しないか、利用できなくなりました。</p>
     <RouterLink to="/lobby" class="primary-link">ロビーへ戻る</RouterLink>
   </main>
-  <main v-else class="app-shell" :class="[state.phase]">
+  <main v-else class="app-shell" >
     <p v-if="archivedGame">このゲームは終了し、ログが保存されています。</p>
     <p v-if="error" class="error">{{ error }}</p>
 
@@ -405,34 +401,13 @@ watch(
     </aside>
     <template v-if="privateState.role" >
       <div class="bar">◆あなたの情報</div>
-      <div class="role-box">
-        <div>あなたの役職は【{{ roleLabels[privateState.role] }}】です。</div>
-        <div>【能力】{{ roleDescriptions[privateState.role] }}</div>
-        <div v-if="privateState.divineResults.length" class="results">
-          <p v-for="result in privateState.divineResults" :key="`${result.day}-${result.targetId}`">
-            【能力発動】{{ formatDivine(result) }}
-          </p>
-        </div>
-        <div v-if="privateState.mediumResults.length" class="results">
-          <p v-for="result in privateState.mediumResults" :key="`${result.day}-${result.targetId}`">
-            【霊能結果】{{ result.day }}日目: {{ result.targetName }} は
-            {{ result.result === "werewolf" ? "人狼" : "人間" }}
-          </p>
-        </div>
-        <p v-if="privateState.role === 'shared'">
-          【共有者】{{ sharedPlayers.map((player) => player.name).join("、") }}
-        </p>
-        <p v-if="privateState.knownWerewolfPlayerIds.length > 0">
-          人狼: {{ knownWerewolves.map((player) => player.name).join("、") }}
-        </p>
-      </div>
-
+      <RoleBoxPanel :private-state="privateState" :state="state"/>
     </template>
     <div class="bar">◆行動</div>
     <aside class="command-panel">
 
       <div class="actions">
-        <section v-if="isGameMaster" class="start-panel">
+        <section v-if="isGameMaster && state.phase==='waiting'" class="start-panel">
           <button :disabled="!state.canStart" @click="startGame">開始</button>
           <button
             v-if="state.phase === 'waiting'"
@@ -503,37 +478,58 @@ watch(
              （{{ roomStateString }}）</p>
         </div>
         <div class="status-row">
-          <span>{{ phaseLabels[state.phase] }}</span>
+          <div>{{ phaseLabels[state.phase] }}</div>
           <span v-if="state.phase === 'ended' && remainingSeconds !== null">ルーム終了まで</span>
-          <strong v-if="remainingSeconds !== null">{{ remainingSeconds }}s</strong>
+          あと<strong v-if="remainingSeconds !== null">{{ remainingSeconds }}秒</strong>
         </div>
       </section>
       <ChatPanel :logs="displayLogEntries"/>
     </section>
 
   </main>
+  </div>
 </template>
 
 <style scoped>
 
-main.app-shell{
+.game-container
+{
   font-size: 14px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+
+.game-container.nightDiscussion,
+.game-container.nightAttack
+{
+  background: #272624;
+  color: rgb(231, 231, 231);
+  font-size: 14px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+main.app-shell{
+  padding: 4px;
+  width: min(900px, 100%);
+  /* margin: 0 auto; */
+  margin-left: .5rem;;
 }
 
 div.bar{
   font-size: 90%;
   background-color: #26282b;
   color: white;
-  padding: 2px;
+  line-height: 1.6;
   font-weight: bold;
+  margin: .25rem 0;
+}
+.game-container:is(.nightDiscussion, .nightAttack) div.bar{
+  background-color: #b1b1b1;
+  color: #222;
 }
 
-.role-box {
-  margin: .25em 0;
-}
-.role-box strong {
-  font-size: 24px;
-}
 
 .actions {
   /* display: grid; */
@@ -545,7 +541,6 @@ div.bar{
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 16px;
 }
 .top-bar p.pr {
   color: #5f6870;
@@ -554,6 +549,21 @@ div.bar{
   vertical-align: baseline;
 }
 .top-bar .room-setting span{
+  font-size: 180%;
+}
+
+
+
+.status-row{
+  text-align: right;
+  font-size: 120%;
+  /* display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px; */
+}
+
+.status-row strong{
   font-size: 180%;
 }
 </style>

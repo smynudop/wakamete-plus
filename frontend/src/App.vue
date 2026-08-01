@@ -13,7 +13,7 @@ import { RouterLink, RouterView } from "vue-router";
       <RouterLink to="/logs">過去ログ</RouterLink>
     </nav>
   </aside>
-  <main>
+  <main class="site-main">
     <RouterView />
   </main>
   </div>

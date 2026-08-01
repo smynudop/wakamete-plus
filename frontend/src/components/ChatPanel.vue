@@ -76,9 +76,39 @@ const formatDate = (dt: number) => {
 </template> 
 
 <style scoped>
+
+.messages p {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 4px;
+  margin-bottom: 4px;
+  line-height: 1.45;
+}
+
+.messages p.vote  {
+  background-color: #7c7879;
+  color: white;
+}
+
+.messages p.werewolf .chat-text {
+  color: #eca1aa;
+}
+
+.messages p.shared .chat-text {
+  color: #95ceab;
+}
+
+.messages p.monologue .chat-text {
+  color: #a8b9d8;
+}
+
 .messages p.event-entry {
   display:block;
 }
+.messages p img{
+    margin-right: .25em;
+}
+
 .event-entry.end{
     font-size: 160%;
 }
@@ -104,4 +134,6 @@ const formatDate = (dt: number) => {
 .event-message{
     padding-left: .25em;
 }
+
+
 </style>
