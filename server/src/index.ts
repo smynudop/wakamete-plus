@@ -19,7 +19,7 @@ const gameLogs = new MongoGameLogStore(mongoClient.db());
 await gameLogs.createIndexes();
 const httpServer = createServer(createHttpApp(frontendDist, gameLogs));
 
-attachGameSocketServer(httpServer, gameLogs);
+const gameSocketServer = attachGameSocketServer(httpServer, gameLogs);
 
 const port = Number(process.env.PORT ?? 3000);
 httpServer.listen(port, () => {
@@ -27,6 +27,7 @@ httpServer.listen(port, () => {
 });
 
 async function shutdown(): Promise<void> {
+  gameSocketServer.stopMaintenance();
   httpServer.close();
   await mongoClient.close();
 }

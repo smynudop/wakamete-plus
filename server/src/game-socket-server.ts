@@ -5,7 +5,17 @@ import type { GameEventBundle, GameRoom } from "./game.js";
 import type { GameLogRepository } from "./game-log-store.js";
 import { RoomManager } from "./rooms.js";
 
-export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLogRepository): void {
+export const WAITING_ROOM_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+export const WAITING_ROOM_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+
+export interface GameSocketServerHandle {
+  stopMaintenance(): void;
+}
+
+export function attachGameSocketServer(
+  httpServer: HttpServer,
+  gameLogs: GameLogRepository
+): GameSocketServerHandle {
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
       origin: true
@@ -13,6 +23,9 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
   });
   const rooms = new RoomManager();
   const timers = new Map<string, NodeJS.Timeout>();
+  const closingRooms = new Set<string>();
+  const waitingRoomSweep = setInterval(sweepExpiredWaitingRooms, WAITING_ROOM_SWEEP_INTERVAL_MS);
+  waitingRoomSweep.unref();
 
   io.on("connection", (socket) => {
     socket.emit("roomList", rooms.list());
@@ -187,6 +200,9 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
   }
 
   function scheduleTimer(roomId: string, room: GameRoom): void {
+    if (closingRooms.has(roomId)) {
+      return;
+    }
     const currentTimer = timers.get(roomId);
     if (currentTimer) {
       clearTimeout(currentTimer);
@@ -208,17 +224,47 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
   }
 
   async function closeRoom(roomId: string, room: GameRoom): Promise<void> {
+    if (closingRooms.has(roomId)) {
+      return;
+    }
+    closingRooms.add(roomId);
+    clearRoomTimer(roomId);
     try {
       await gameLogs.save(room.createArchive(roomId));
+    } catch (error) {
+      console.error(`Failed to save room ${roomId}; closing without an archive:`, error);
+    } finally {
       rooms.close(roomId);
       io.in(roomId).socketsLeave(roomId);
+      closingRooms.delete(roomId);
       io.emit("roomList", rooms.list());
-    } catch (error) {
-      console.error(`Failed to close room ${roomId}:`, error);
-      timers.set(roomId, setTimeout(() => {
-        timers.delete(roomId);
-        void closeRoom(roomId, room);
-      }, 5_000));
     }
   }
+
+  function sweepExpiredWaitingRooms(): void {
+    const expiredRoomIds = rooms.expiredWaitingRoomIds(WAITING_ROOM_MAX_AGE_MS);
+    for (const roomId of expiredRoomIds) {
+      clearRoomTimer(roomId);
+      io.to(roomId).emit("roomLeft");
+      rooms.close(roomId);
+      io.in(roomId).socketsLeave(roomId);
+    }
+    if (expiredRoomIds.length > 0) {
+      io.emit("roomList", rooms.list());
+    }
+  }
+
+  function clearRoomTimer(roomId: string): void {
+    const timer = timers.get(roomId);
+    if (timer) {
+      clearTimeout(timer);
+      timers.delete(roomId);
+    }
+  }
+
+  return {
+    stopMaintenance(): void {
+      clearInterval(waitingRoomSweep);
+    }
+  };
 }

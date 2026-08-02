@@ -13,13 +13,19 @@ export interface ManagedRoomResult {
   bundle: GameEventBundle;
 }
 
+interface ManagedRoom {
+  room: GameRoom;
+  createdAt: number;
+}
+
 export class RoomManager {
-  private readonly rooms = new Map<string, GameRoom>();
+  private readonly rooms = new Map<string, ManagedRoom>();
   private readonly socketRooms = new Map<string, string>();
 
   constructor(
     private readonly createRoomId: () => string = () => randomUUID(),
-    private readonly createGameRoom: () => GameRoom = () => new GameRoom()
+    private readonly createGameRoom: () => GameRoom = () => new GameRoom(),
+    private readonly now: () => number = () => Date.now()
   ) {}
 
   create(socketId: string, payload: CreateRoomPayload): ManagedRoomResult {
@@ -28,7 +34,7 @@ export class RoomManager {
     const room = this.createGameRoom();
     const bundle = room.create(socketId, payload.player);
     room.updateRoomSettings(socketId, payload.settings);
-    this.rooms.set(roomId, room);
+    this.rooms.set(roomId, { room, createdAt: this.now() });
     this.socketRooms.set(socketId, roomId);
     return { roomId, room, bundle: this.bundleWithCurrentState(room, bundle) };
   }
@@ -68,17 +74,30 @@ export class RoomManager {
   }
 
   list(): LobbyRoom[] {
-    return [...this.rooms.entries()].map(([id, room]) => this.toLobbyRoom(id, room.getState()));
+    return [...this.rooms.entries()].map(([id, managed]) =>
+      this.toLobbyRoom(id, managed.room.getState())
+    );
   }
 
-  close(roomId: string): void {
-    this.requireRoom(roomId);
-    this.rooms.delete(roomId);
+  close(roomId: string): boolean {
+    if (!this.rooms.delete(roomId)) {
+      return false;
+    }
     for (const [socketId, mappedRoomId] of this.socketRooms) {
       if (mappedRoomId === roomId) {
         this.socketRooms.delete(socketId);
       }
     }
+    return true;
+  }
+
+  expiredWaitingRoomIds(maxAgeMs: number): string[] {
+    const cutoff = this.now() - maxAgeMs;
+    return [...this.rooms.entries()]
+      .filter(([, managed]) =>
+        managed.createdAt <= cutoff && managed.room.getState().phase === "waiting"
+      )
+      .map(([roomId]) => roomId);
   }
 
   private toLobbyRoom(id: string, state: PublicGameState): LobbyRoom {
@@ -95,11 +114,11 @@ export class RoomManager {
   }
 
   private requireRoom(roomId: string): GameRoom {
-    const room = this.rooms.get(roomId);
-    if (!room) {
+    const managed = this.rooms.get(roomId);
+    if (!managed) {
       throw new Error("指定したルームが見つかりません。");
     }
-    return room;
+    return managed.room;
   }
 
   private requireNoRoom(socketId: string): void {

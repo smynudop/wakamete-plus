@@ -120,4 +120,45 @@ describe("RoomManager", () => {
     expect(() => manager.getRoom("room-a")).toThrow("指定したルームが見つかりません。");
     expect(() => manager.roomForSocket("creator")).toThrow("先にルームへ参加してください。");
   });
+
+  it("finds only waiting rooms that have remained unstarted past the maximum age", () => {
+    let now = 1_000;
+    const ids = ["expired-waiting", "started", "ended", "recent-waiting"];
+    const manager = new RoomManager(
+      () => ids.shift() ?? "unexpected",
+      () => new GameRoom(() => now),
+      () => now
+    );
+    manager.create("creator-expired", roomPayload("期限切れ村", "owner-expired"));
+    const started = manager.create("creator-started", roomPayload("進行中村", "owner-started"));
+    for (let index = 0; index < 4; index += 1) {
+      started.room.addBot("creator-started");
+    }
+    started.room.start("creator-started");
+    const ended = manager.create("creator-ended", roomPayload("終了済み村", "owner-ended"));
+    for (let index = 0; index < 4; index += 1) {
+      ended.room.addBot("creator-ended");
+    }
+    ended.room.start("creator-ended");
+    ended.room.advanceTimer();
+    ended.room.advanceTimer();
+    ended.room.advanceTimer();
+    for (let voteRound = 0; voteRound < 4; voteRound += 1) {
+      ended.room.advanceTimer();
+    }
+    expect(ended.room.getState().phase).toBe("ended");
+
+    now += 3 * 60 * 60 * 1000 + 1;
+    manager.create("creator-recent", roomPayload("新しい村", "owner-recent"));
+
+    expect(manager.expiredWaitingRoomIds(3 * 60 * 60 * 1000)).toEqual(["expired-waiting"]);
+  });
+
+  it("allows closing the same room more than once without throwing", () => {
+    const manager = new RoomManager(() => "room-a");
+    manager.create("creator", roomPayload("終了村", "owner"));
+
+    expect(manager.close("room-a")).toBe(true);
+    expect(manager.close("room-a")).toBe(false);
+  });
 });
