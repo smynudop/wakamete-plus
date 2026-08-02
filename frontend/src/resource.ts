@@ -1,6 +1,7 @@
 import type {
   Role,
   Team,
+  GamePhase
 } from "@wakamete-plus/shared";
 
 export const roleLabels: Record<Role, string> = {
@@ -15,6 +16,15 @@ export const roleLabels: Record<Role, string> = {
   cat: "猫又",
   fanatic: "狂信者",
   immoralist: "背徳者"
+};
+
+export const phaseLabels: Record<GamePhase, string> = {
+  waiting: "待機中",
+  nightDiscussion: "夜の議論",
+  nightAttack: "夜の襲撃",
+  dayDiscussion: "昼の議論",
+  dayVote: "昼の投票",
+  ended: "終了"
 };
 
 export const teamLabels: Record<Team, string> = {

@@ -7,7 +7,6 @@ import type {
   ChatChannel,
   ChatSize,
   ArchivedGameLog,
-
   GameLogEntry,
   PrivateState,
   PublicGameState,
@@ -17,6 +16,7 @@ import type {
   ClientToServerEvents
 } from "@wakamete-plus/shared";
 import { DEFAULT_PLAYER_COLOR } from "@wakamete-plus/shared";
+import { phaseLabels } from "../resource.js";
 import type { DevelopmentPreviewState } from "./DevelopmentPanel.vue";
 import ActionPanel from "./ActionPanel.vue"
 import JoinPanel from "./JoinPanel.vue";
@@ -41,14 +41,7 @@ const archivedGame = ref<ArchivedGameLog | null>(null);
 const archiveLookupPending = ref(false);
 
 
-const phaseLabels: Record<PublicGameState["phase"], string> = {
-  waiting: "待機中",
-  nightDiscussion: "夜の議論",
-  nightAttack: "夜の襲撃",
-  dayDiscussion: "昼の議論",
-  dayVote: "昼の投票",
-  ended: "終了"
-};
+
 
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({ autoConnect: false });
 const joinState = ref<JoinState>({
@@ -91,7 +84,10 @@ const state = ref<PublicGameState>(props.previewState?.gameState || {
 const roomStateString = computed(() => {
   const room = state.value.room
   const d = room.durationSeconds
-  const formatSecond = (sec: number) => sec % 60 == 0 ? `${sec/60}分` : `${Math.floor(sec/60)}分${sec%60}秒`
+  const formatSecond = (sec: number) => 
+  sec < 60 ? `${sec}秒`
+  : sec % 60 == 0 ? `${sec/60}分` 
+  : `${Math.floor(sec/60)}分${sec%60}秒`
   return `定員: ${room.playerLimit}人 昼: ${formatSecond(d.dayDiscussion)} 投票: ${formatSecond(d.dayVote)} 夜: ${formatSecond(d.nightDiscussion)} 役職: ${formatSecond(d.nightAttack)}`
 }
 )
@@ -484,7 +480,9 @@ watch(
         <div class="status-row">
           <div>{{ phaseLabels[state.phase] }}</div>
           <span v-if="state.phase === 'ended' && remainingSeconds !== null">ルーム終了まで</span>
-          あと<strong v-if="remainingSeconds !== null">{{ remainingSeconds }}秒</strong>
+          <template v-if="remainingSeconds !== null">
+            あと<strong >{{ remainingSeconds }}秒</strong>
+          </template>
         </div>
       </section>
       <ChatPanel :logs="displayLogEntries"/>
@@ -495,6 +493,9 @@ watch(
 </template>
 
 <style scoped>
+h1{
+  margin: 0;
+}
 
 .game-container
 {

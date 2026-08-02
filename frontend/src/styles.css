@@ -37,14 +37,14 @@ button {
   border: 0;
   border-radius: 3px;
   padding: .5em .75em;
-  color: black;
-  background: #c5c8c9;
-  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.281);
+  color: white;
+  background: #547ed8;
+  box-shadow: 2px 2px 1px rgba(0, 0, 0, 0.281);
   cursor: pointer;
 }
 
 button:hover{
-  background: #d8dcdd;
+  background: #4f76e0;
 }
 
 button:disabled {

@@ -20,7 +20,7 @@ const props = defineProps<{
         </div>
         <div>
             <div>{{ player.name }}</div>
-            <div v-if="player.role">{{ roleLabels[player.role] }}</div>
+            <div v-if="player.role">[<span :class="player.role">{{ roleLabels[player.role] }}</span>]</div>
             <div>{{ player.alive ? "（生存中）" : "（死　亡）" }}</div>
         </div>
     </li>
@@ -60,6 +60,8 @@ const props = defineProps<{
 
 .players li .icon{
   border: 1px solid #333;
+  display: flex;
+  align-items: center;
 }
 
 .players li img{
@@ -70,7 +72,7 @@ const props = defineProps<{
 }
 
 .players li.dead {
-  opacity: 0.55;
+  filter: grayscale(100%);
 }
 
 
@@ -84,5 +86,22 @@ position: absolute;
 right: 0;
 top: 0;
 padding: 2px;
+}
+
+.werewolf{
+  color: red;
+}
+.seer, .shared{
+  color: #00cc33;
+}
+.hunter, .medium{
+  color: #00ccff;
+}
+
+.madman{
+  color: #ff0099;
+}
+.fox{
+  color: #ffcc33;
 }
 </style>

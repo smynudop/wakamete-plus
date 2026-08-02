@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { GameLogEntry, GameEventEntry } from '@wakamete-plus/shared';
-import { teamLabels } from '../resource';
+import { teamLabels, phaseLabels } from '../resource';
 
 defineProps<{
     logs: GameLogEntry[]
@@ -8,7 +8,7 @@ defineProps<{
 
 const formatDate = (dt: number) => {
     const d = new Date(dt)
-    return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`
+    return `${d.getFullYear().toString().slice(2)}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`
 }
 </script>
 
@@ -26,7 +26,7 @@ const formatDate = (dt: number) => {
         </template>
         <template v-else>
             <template v-if="entry.detail.type == 'join'">
-                <img src="/msg.gif"><strong>{{ entry.detail.sender.name }}</strong>さんが村にやってきました。
+                <img src="/msg.gif"><strong>{{ entry.detail.sender.name }}</strong>さんが村にやってきました。({{ formatDate(entry.sentAt) }})
             </template>
             <template v-else-if="entry.detail.type == 'start'">
                 <img src="/msg.gif">村が開始しました。
@@ -36,7 +36,7 @@ const formatDate = (dt: number) => {
                 <template v-else>{{teamLabels[entry.detail.win]}}の勝利です！</template>
             </template>
             <template v-else-if="entry.detail.type == 'progress'">
-                <img src="/ampm.gif">{{entry.detail.day}}日目の{{ entry.detail.phase }}になりました。
+                <img src="/ampm.gif">{{entry.detail.day}}日目の{{ phaseLabels[entry.detail.phase] }}になりました。({{ formatDate(entry.sentAt) }})
             </template>
             <template v-else-if="entry.detail.type == 'vote'">
                 <strong>{{entry.detail.sender.name}}</strong>さんが<strong>{{ entry.detail.target.name }}</strong>に投票しました。
@@ -86,8 +86,10 @@ const formatDate = (dt: number) => {
 }
 
 .messages p.vote  {
-  background-color: #7c7879;
-  color: white;
+    user-select: none;
+  color: rgb(25, 31, 63);
+  background-color: #dee1e7;
+  line-height: 1.5;
 }
 
 .messages p.werewolf .chat-text {
@@ -99,6 +101,7 @@ const formatDate = (dt: number) => {
 }
 
 .messages p.dead .chat-text {
+    background-color: gray;
   color: #b5a6c9;
 }
 
