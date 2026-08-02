@@ -156,9 +156,10 @@ socket.on("phaseChanged", () => {
   }
   selectedVote.value = "";
   selectedAttack.value = "";
-  chatChannel.value = state.value.phase === "nightDiscussion" || state.value.phase === "nightAttack"
-    ? "monologue"
-    : "public";
+  chatChannel.value = me.value && !me.value.alive ? "dead"
+    : state.value.phase === "nightDiscussion" || state.value.phase === "nightAttack"
+      ? "monologue"
+      : "public";
 });
 socket.on("actionError", (payload) => {
   error.value = payload.message;
@@ -211,13 +212,16 @@ const canChat = computed(() => {
     return true;
   }
   if (!me.value?.alive) {
-    return false;
+    return true;
   }
   return state.value.phase === "dayDiscussion"
     || state.value.phase === "nightDiscussion"
     || state.value.phase === "nightAttack";
 });
 const chatChannelOptions = computed<{ value: ChatChannel; label: string }[]>(() => {
+  if (state.value.phase !== "waiting" && state.value.phase !== "ended" && me.value && !me.value.alive) {
+    return [{ value: "dead", label: "霊界の会話" }];
+  }
   if (state.value.phase === "nightDiscussion") {
     return privateState.value.role === "werewolf"
       ? [

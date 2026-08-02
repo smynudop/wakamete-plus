@@ -128,6 +128,8 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
         emitToRole(bundle, "werewolf", (socketId) => io.to(socketId).emit("logEntry", entry));
       } else if (message.channel === "shared") {
         emitToRole(bundle, "shared", (socketId) => io.to(socketId).emit("logEntry", entry));
+      } else if (message.channel === "dead") {
+        emitToDead(bundle, (socketId) => io.to(socketId).emit("logEntry", entry));
       } else {
         io.to(roomId).emit("logEntry", entry);
       }
@@ -171,6 +173,17 @@ export function attachGameSocketServer(httpServer: HttpServer, gameLogs: GameLog
   function socketIdForPlayer(bundle: GameEventBundle, playerId: string): string | undefined {
     return [...bundle.privateStates.entries()]
       .find(([, privateState]) => privateState.playerId === playerId)?.[0];
+  }
+
+  function emitToDead(bundle: GameEventBundle, emit: (socketId: string) => void): void {
+    const deadPlayerIds = new Set(
+      bundle.state.players.filter((player) => !player.alive).map((player) => player.id)
+    );
+    for (const [socketId, privateState] of bundle.privateStates) {
+      if (privateState.playerId && deadPlayerIds.has(privateState.playerId)) {
+        emit(socketId);
+      }
+    }
   }
 
   function scheduleTimer(roomId: string, room: GameRoom): void {

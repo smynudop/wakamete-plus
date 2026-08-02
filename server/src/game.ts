@@ -109,7 +109,7 @@ export interface GameEventBundle {
 
 export interface GameLogDispatch {
   entry: GameLogEntry;
-  audience: "public" | "werewolves" | "shared" | "private";
+  audience: "public" | "werewolves" | "shared" | "dead" | "private";
   playerId?: string;
 }
 
@@ -345,10 +345,11 @@ export class GameRoom {
       }
       channel = "public";
     } else {
-      if (!player.alive) {
-        throw new Error("死亡したプレイヤーは発言できません。");
-      }
-      if (this.phase === "dayDiscussion") {
+      if (!player.alive && requestedChannel === "dead") {
+        channel = "dead";
+      } else if (!player.alive) {
+        throw new Error("死亡したプレイヤーは霊界でのみ発言できます。");
+      } else if (this.phase === "dayDiscussion") {
         channel = "public";
       } else if (
         this.phase === "nightDiscussion"
@@ -1069,6 +1070,8 @@ export class GameRoom {
         ? "werewolves"
         : message.channel === "shared"
           ? "shared"
+        : message.channel === "dead"
+          ? "dead"
         : message.channel === "monologue"
           ? "private"
           : "public";
@@ -1092,7 +1095,9 @@ export class GameRoom {
   }
 
   private publicHistory(): GameLogEntry[] {
-    return this.history.filter((item) => item.audience === "public").map((item) => item.entry);
+    return this.history
+      .filter((item) => item.audience === "public" || (this.phase === "ended" && item.audience === "dead"))
+      .map((item) => item.entry);
   }
 
   private visibleHistory(player: Player): GameLogEntry[] {
@@ -1102,6 +1107,7 @@ export class GameRoom {
         || item.playerId === player.id
         || (item.audience === "werewolves" && player.role === "werewolf")
         || (item.audience === "shared" && player.role === "shared")
+        || (item.audience === "dead" && (!player.alive || this.phase === "ended"))
       )
       .map((item) => item.entry);
   }

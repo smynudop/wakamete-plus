@@ -261,6 +261,62 @@ describe("GameRoom", () => {
     );
   });
 
+  it("allows only dead players to use and view the dead chat", () => {
+    const { room, startBundle, sockets } = createStartedRoom();
+    room.advanceTimer();
+    room.advanceTimer();
+    room.advanceTimer();
+
+    const werewolfSocket = socketForRole(startBundle, "werewolf");
+    const victimSocket = sockets.find((socketId) => socketId !== werewolfSocket)!;
+    const victimId = playerIdForSocket(startBundle, victimSocket);
+    const fallbackId = playerIdForSocket(startBundle, werewolfSocket);
+    for (const socketId of sockets) {
+      room.vote(socketId, socketId === victimSocket ? fallbackId : victimId);
+    }
+
+    expect(room.getState().players.find((player) => player.id === victimId)?.alive).toBe(false);
+    expect(room.sendChat(victimSocket, "霊界からこんにちは", "dead").chats[0]?.channel).toBe("dead");
+    expect(() => room.sendChat(victimSocket, "公開発言", "public")).toThrow(
+      "死亡したプレイヤーは霊界でのみ発言できます。"
+    );
+    expect(() => room.sendChat(werewolfSocket, "生存者の霊界発言", "dead")).toThrow(
+      "このフェーズでは指定した発言を送信できません。"
+    );
+    expect(room.getPrivateState(victimSocket).log).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "chat", channel: "dead", text: "霊界からこんにちは" })])
+    );
+    expect(room.getPrivateState(werewolfSocket).log).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "chat", channel: "dead" })])
+    );
+
+    const attackTarget = room.getState().players.find(
+      (player) => player.alive && !player.npc && player.id !== fallbackId
+    )!;
+    room.attack(werewolfSocket, attackTarget.id);
+    room.advanceTimer();
+    room.advanceTimer();
+    room.advanceTimer();
+    const fallback = room.getState().players.find(
+      (player) => player.alive && !player.npc && player.id !== fallbackId
+    )!;
+    for (const socketId of sockets) {
+      const voterId = playerIdForSocket(startBundle, socketId);
+      const voter = room.getState().players.find((player) => player.id === voterId);
+      if (voter?.alive) {
+        room.vote(socketId, voterId === fallbackId ? fallback.id : fallbackId);
+      }
+    }
+
+    expect(room.getState().phase).toBe("ended");
+    expect(room.getPrivateState(werewolfSocket).log).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "chat", channel: "dead", text: "霊界からこんにちは" })])
+    );
+    expect(room.getPrivateState("spectator").log).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "chat", channel: "dead", text: "霊界からこんにちは" })])
+    );
+  });
+
   it("accepts night abilities in both night phases and keeps an early attack target", () => {
     const { room, startBundle } = createStartedRoom();
     const werewolfSocket = socketForRole(startBundle, "werewolf");

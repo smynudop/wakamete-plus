@@ -57,6 +57,7 @@ const previewState = ref<DevelopmentPreviewState>({
     { kind: "chat", "senderId": "p-1", day: 0, id: "id", text: "独り言", phase: "waiting", channel: "monologue", sentAt: 0, senderName: "ゲームマスター", senderColor: "#FF0000", size: "normal" },
     { kind: "chat", "senderId": "p-1", day: 0, id: "id", text: "狼会話", phase: "waiting", channel: "werewolf", sentAt: 0, senderName: "ゲームマスター", senderColor: "#FF0000", size: "normal" },
     { kind: "chat", "senderId": "p-1", day: 0, id: "id", text: "共有会話", phase: "waiting", channel: "shared", sentAt: 0, senderName: "ゲームマスター", senderColor: "#FF0000", size: "normal" },
+    { kind: "chat", "senderId": "p-1", day: 0, id: "id", text: "霊界会話", phase: "waiting", channel: "dead", sentAt: 0, senderName: "ゲームマスター", senderColor: "#FF0000", size: "normal" },
     createEvent({ type: "death", target: { id: "1", name: "安部菜々" }, reason: "attack" }),
     createEvent({ type: "death", target: { id: "1", name: "安部菜々" }, reason: "execution" }),
     createEvent({ type: "join", sender: { id: "1", name: "荒木比奈" } }),

@@ -69,7 +69,7 @@ export type GamePhase =
   | "dayVote"
   | "ended";
 
-export type ChatChannel = "public" | "werewolf" | "shared" | "monologue";
+export type ChatChannel = "public" | "werewolf" | "shared" | "dead" | "monologue";
 export type ChatSize = "normal" | "strong" | "weak";
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 

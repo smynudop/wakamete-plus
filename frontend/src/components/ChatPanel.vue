@@ -98,6 +98,10 @@ const formatDate = (dt: number) => {
   color: #95ceab;
 }
 
+.messages p.dead .chat-text {
+  color: #b5a6c9;
+}
+
 .messages p.monologue .chat-text {
   color: #a8b9d8;
 }
