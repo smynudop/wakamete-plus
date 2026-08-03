@@ -1,14 +1,12 @@
 import "dotenv/config";
 import { createServer } from "node:http";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { MongoClient } from "mongodb";
 import { attachGameSocketServer } from "./game-socket-server.js";
+import { resolveFrontendDist } from "./frontend-dist.js";
 import { MongoGameLogStore } from "./game-log-store.js";
 import { createHttpApp } from "./http-app.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const frontendDist = path.resolve(__dirname, "../../frontend/dist");
+const frontendDist = resolveFrontendDist();
 const mongodbUri = process.env.MONGODB_URI;
 if (!mongodbUri) {
   throw new Error("MONGODB_URIを設定してください。");
