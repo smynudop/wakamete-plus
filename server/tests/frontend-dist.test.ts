@@ -4,7 +4,7 @@ import { resolveFrontendDist } from "../src/frontend-dist.js";
 
 describe("frontend distribution path", () => {
   it("finds the frontend from both source and compiled module depths", () => {
-    const expected = path.resolve("frontend/dist");
+    const expected = path.resolve("../frontend/dist");
 
     expect(resolveFrontendDist(undefined, import.meta.url)).toBe(expected);
     expect(
