@@ -64,7 +64,7 @@ const formatDate = (dt: number) => {
                 <img src="/wlf.gif"><strong>{{entry.detail.sender.name}}</strong>さんが<strong>{{ entry.detail.target.name }}</strong>さんを襲撃します。
             </template>
             <template v-else-if="entry.detail.type == 'death'">
-                <img src="/dead2.gif"><strong>{{ entry.detail.target.name }}</strong>さんが死亡しました。({{ entry.detail.reason }})
+                <img src="/dead2.gif"><strong>{{ entry.detail.target.name }}</strong>さんが死亡しました。({{ entry.detail.reason === 'sudden-death' ? '突然死' : entry.detail.reason }})
             </template>
             <template v-else>
                 {{ entry }}

@@ -17,6 +17,7 @@ import {
   type PrivateState,
   type PublicGameState,
   type PublicPlayer,
+  type PlayerColor,
   type Role,
   type RoomSettings,
   type Team,
@@ -290,6 +291,36 @@ export class GameRoom {
       player.connected = false;
     }
     this.socketToPlayer.delete(socketId);
+    return this.bundle(false, null);
+  }
+
+  exit(socketId: string): GameEventBundle {
+    const player = this.requireSocketPlayer(socketId);
+    if (this.phase !== "waiting") throw new Error("ゲーム開始後は退出できません。");
+    if (player.gameMaster) throw new Error("ゲームマスターは退出できません。");
+    this.removePlayer(player.id);
+    return this.bundle(false, null);
+  }
+
+  kick(socketId: string, playerId: string): GameEventBundle {
+    this.requireGameMaster(socketId);
+    if (this.phase !== "waiting") throw new Error("ゲーム開始後はキックできません。");
+    const target = this.requirePlayer(playerId);
+    if (target.npc || target.gameMaster) throw new Error("このプレイヤーはキックできません。");
+    this.removePlayer(target.id);
+    return this.bundle(false, null);
+  }
+
+  updatePlayer(socketId: string, payload: Pick<JoinGamePayload, "name" | "color">): GameEventBundle {
+    const player = this.requireSocketPlayer(socketId);
+    if (this.phase !== "waiting") throw new Error("ゲーム開始後はプレイヤー情報を変更できません。");
+    const name = payload.name.trim().slice(0, 24);
+    if (!name) throw new Error("名前を入力してください。");
+    if (this.humanPlayers().some((candidate) => candidate.id !== player.id && candidate.name === name)) {
+      throw new Error("同じ名前のプレイヤーがいます。");
+    }
+    player.name = name;
+    player.color = PLAYER_COLORS.includes(payload.color as PlayerColor) ? payload.color! : player.color;
     return this.bundle(false, null);
   }
 
@@ -578,7 +609,8 @@ export class GameRoom {
             .map((candidate) => candidate.id)
         : [],
       log: player ? this.visibleHistory(player) : this.publicHistory(),
-      sessionToken: player?.sessionToken ?? null
+      sessionToken: player?.sessionToken ?? null,
+      pendingAction: player ? this.isActionPending(player) : false
     };
   }
 
@@ -646,6 +678,21 @@ export class GameRoom {
     }
 
     if (this.phase === "dayVote") {
+      const suddenDeaths = this.timerExpired()
+        ? this.livingPlayers().filter((player) => !player.npc && !this.votes.has(player.id))
+        : [];
+      if (suddenDeaths.length > 0) {
+        const ids = new Set(suddenDeaths.map((player) => player.id));
+        const requiresRevote = [...this.votes.values()].some((targetId) => ids.has(targetId));
+        this.killSuddenly(suddenDeaths);
+        const winner = this.checkWinner();
+        if (winner) return this.endGame(winner);
+        if (requiresRevote) {
+          this.votes.clear();
+          this.setPhase("dayVote");
+          return { phaseChanged: true, gameEnded: null };
+        }
+      }
       this.voteRound += 1;
       const tied = this.resolveVote();
       if (tied) {
@@ -669,6 +716,16 @@ export class GameRoom {
     }
 
     if (this.phase === "nightAttack") {
+      const required = this.timerExpired() ? this.livingPlayers().filter((player) =>
+        player.role === "seer" || (player.role === "hunter" && this.day > 1)
+      ).filter((player) => player.role === "seer"
+        ? !player.divineResults.some((result) => result.day === this.day)
+        : !this.guardedPlayerIds.has(player.id)) : [];
+      const wolves = this.livingPlayers().filter((player) => player.role === "werewolf");
+      if (this.timerExpired() && wolves.length > 0 && this.attackedPlayerIds.size === 0) required.push(...wolves);
+      this.killSuddenly(required);
+      const suddenWinner = this.checkWinner();
+      if (suddenWinner) return this.endGame(suddenWinner);
       this.resolveAttack();
       const winner = this.checkWinner();
       if (winner) {
@@ -1018,7 +1075,7 @@ export class GameRoom {
       bot: player.bot,
       gameMaster: player.gameMaster,
       connected: player.connected,
-      role: this.phase === "ended" ? this.requireRole(player) : undefined
+      ...(this.phase === "ended" ? { role: this.requireRole(player), handleName: player.handleName } : {})
     };
   }
 
@@ -1123,6 +1180,36 @@ export class GameRoom {
   private botActionKey(player: Player): string {
     const ballot = this.phase === "dayVote" ? `:${this.voteRound}` : "";
     return `${this.day}:${this.phase}${ballot}:${player.id}`;
+  }
+
+  private removePlayer(playerId: string): void {
+    this.players.delete(playerId);
+    for (const [socketId, mappedId] of this.socketToPlayer) {
+      if (mappedId === playerId) this.socketToPlayer.delete(socketId);
+    }
+  }
+
+  private killSuddenly(players: Player[]): void {
+    for (const player of players) {
+      if (!player.alive) continue;
+      player.alive = false;
+      this.record({ type: "death", target: player, reason: "sudden-death" }, "public");
+    }
+    this.resolveImmoralistDeaths();
+  }
+
+  private isActionPending(player: Player): boolean {
+    if (!player.alive) return false;
+    if (this.phase === "dayVote") return !this.votes.has(player.id);
+    if (this.phase !== "nightAttack") return false;
+    if (player.role === "seer") return !player.divineResults.some((result) => result.day === this.day);
+    if (player.role === "hunter") return this.day > 1 && !this.guardedPlayerIds.has(player.id);
+    if (player.role === "werewolf") return this.attackedPlayerIds.size === 0;
+    return false;
+  }
+
+  private timerExpired(): boolean {
+    return this.timer !== null && this.now() >= this.timer.endsAt;
   }
 
   private shuffle<T>(items: T[]): T[] {

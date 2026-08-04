@@ -20,6 +20,7 @@ const props = defineProps<{
         </div>
         <div>
             <div>{{ player.name }}</div>
+            <div v-if="player.handleName">HN: {{ player.handleName }}</div>
             <div v-if="player.role">[<span :class="player.role">{{ roleLabels[player.role] }}</span>]</div>
             <div>{{ player.alive ? "（生存中）" : "（死　亡）" }}</div>
         </div>

@@ -51,6 +51,14 @@ export function attachGameSocketServer(
         broadcastWithBots(result.roomId, result.room, result.bundle);
       });
     });
+    socket.on("watchRoom", ({ roomId }) => {
+      handle(socket.id, () => {
+        const result = rooms.watch(socket.id, roomId);
+        void socket.join(roomId);
+        socket.emit("roomJoined", { roomId });
+        broadcastWithBots(roomId, result.room, result.bundle);
+      });
+    });
     socket.on("leaveRoom", () => {
       handle(socket.id, () => {
         const result = rooms.leave(socket.id);
@@ -62,9 +70,27 @@ export function attachGameSocketServer(
         broadcastWithBots(result.roomId, result.room, result.bundle);
       });
     });
-    socket.on("joinGame", () => {
-      socket.emit("actionError", { message: "ロビーからルームを選択してください。" });
-    });
+    socket.on("joinGame", (player) => handle(socket.id, () => {
+      const result = rooms.joinWatched(socket.id, player);
+      broadcastWithBots(result.roomId, result.room, result.bundle);
+    }));
+    socket.on("exitGame", () => withSocketRoom(socket.id, (room) => {
+      const bundle = room.exit(socket.id);
+      io.to(socket.id).emit("privateState", room.getPrivateState("not-a-player"));
+      return bundle;
+    }));
+    socket.on("updatePlayer", (payload) =>
+      withSocketRoom(socket.id, (room) => room.updatePlayer(socket.id, payload))
+    );
+    socket.on("kickPlayer", ({ playerId }) => withSocketRoom(socket.id, (room) => {
+      const targetSocketIds = [...io.sockets.sockets.values()]
+        .filter((candidate) => room.getPrivateState(candidate.id).playerId === playerId)
+        .map((candidate) => candidate.id);
+      const bundle = room.kick(socket.id, playerId);
+      const empty = room.getPrivateState("not-a-player");
+      for (const targetSocketId of targetSocketIds) io.to(targetSocketId).emit("privateState", empty);
+      return bundle;
+    }));
     socket.on("addBot", () => withSocketRoom(socket.id, (room) => room.addBot(socket.id)));
     socket.on("startGame", () => withSocketRoom(socket.id, (room) => room.start(socket.id)));
     socket.on("updateRoomSettings", (settings) =>

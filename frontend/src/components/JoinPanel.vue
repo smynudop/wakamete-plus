@@ -10,6 +10,7 @@ export interface JoinState {
 }
 
 const joinState = defineModel<JoinState>({ required: true });
+defineProps<{ profileEdit?: boolean }>();
 const emit = defineEmits<{
   submit: [];
 }>();
@@ -21,7 +22,7 @@ const emit = defineEmits<{
       プレイヤー名
       <input v-model="joinState.name" maxlength="24" />
     </label>
-    <label>
+    <label v-if="!profileEdit">
       ハンドル名
       <input v-model="joinState.handleName" maxlength="24" />
     </label>
@@ -44,11 +45,11 @@ const emit = defineEmits<{
         </label>
       </div>
     </fieldset>
-    <label>
+    <label v-if="!profileEdit">
       復帰用パスワード
       <input v-model="joinState.password" type="password" maxlength="64" />
     </label>
-    <button type="submit">参加</button>
+    <button type="submit">{{ profileEdit ? "変更" : "参加" }}</button>
   </form>
 </template>
 

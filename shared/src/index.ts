@@ -121,6 +121,7 @@ export interface PublicPlayer {
   gameMaster: boolean;
   connected: boolean;
   role?: Role;
+  handleName?: string;
 }
 
 export interface PhaseTimer {
@@ -204,6 +205,7 @@ export interface PrivateState {
   knownWerewolfPlayerIds: string[];
   log: GameLogEntry[];
   sessionToken: string | null;
+  pendingAction: boolean;
 }
 
 export interface ChatMessage {
@@ -244,8 +246,12 @@ export type ArchivedGameSummary = Omit<ArchivedGameLog, "entries">;
 export interface ClientToServerEvents {
   createRoom: (payload: CreateRoomPayload) => void;
   joinRoom: (payload: JoinRoomPayload) => void;
+  watchRoom: (payload: { roomId: string }) => void;
   leaveRoom: () => void;
   joinGame: (payload: JoinGamePayload) => void;
+  exitGame: () => void;
+  kickPlayer: (payload: { playerId: string }) => void;
+  updatePlayer: (payload: Pick<JoinGamePayload, "name" | "color">) => void;
   addBot: () => void;
   startGame: () => void;
   updateRoomSettings: (settings: RoomSettings) => void;

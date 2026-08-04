@@ -99,7 +99,8 @@ const privateState = ref<PrivateState>({
   sharedPlayerIds: [],
   knownWerewolfPlayerIds: [],
   log: [],
-  sessionToken: null
+  sessionToken: null,
+  pendingAction: false
 });
 const roomSettings = ref<RoomSettings>({
   ...state.value.room,
@@ -152,10 +153,7 @@ socket.on("phaseChanged", () => {
   }
   selectedVote.value = "";
   selectedAttack.value = "";
-  chatChannel.value = me.value && !me.value.alive ? "dead"
-    : state.value.phase === "nightDiscussion" || state.value.phase === "nightAttack"
-      ? "monologue"
-      : "public";
+  chatChannel.value = chatChannelOptions.value[0]?.value ?? "public";
 });
 socket.on("actionError", (payload) => {
   error.value = payload.message;
@@ -169,7 +167,7 @@ socket.on("connect", () => {
         sessionToken: joinState.value.sessionToken
       }
     });
-  }
+  } else socket.emit("watchRoom", { roomId: roomId.value });
 });
 if (!props.previewState) {
   socket.connect();
@@ -274,13 +272,19 @@ function joinGame() {
   localStorage.setItem("wakamete:name", joinState.value.name);
   localStorage.setItem("wakamete:handleName", joinState.value.handleName);
   localStorage.setItem("wakamete:color", joinState.value.color);
-  socket.emit("joinRoom", {
-    roomId: roomId.value,
-    player: {
+  socket.emit("joinGame", {
       ...joinState.value,
       sessionToken: joinState.value.sessionToken || undefined
-    }
   });
+}
+
+function exitGame() { error.value = ""; socket.emit("exitGame"); }
+function kickPlayer(playerId: string) { error.value = ""; socket.emit("kickPlayer", { playerId }); }
+function updatePlayer() {
+  error.value = "";
+  localStorage.setItem("wakamete:name", joinState.value.name);
+  localStorage.setItem("wakamete:color", joinState.value.color);
+  socket.emit("updatePlayer", { name: joinState.value.name, color: joinState.value.color });
 }
 
 function startGame() {
@@ -374,7 +378,8 @@ watch(
       log: [],
       divineResults: preview.hasDivineResult
         ? [{ targetId: "3", targetName: "荒木比奈", result: "human", day: 1 }]
-        : []
+        : [],
+      pendingAction: false
     };
   },
   { deep: true, immediate: true }
@@ -422,6 +427,16 @@ watch(
           v-model="roomSettings"
           @submit="updateRoomSettings"/>
         <JoinPanel v-if="!joined && state.phase=='waiting'" v-model="joinState" @submit="joinGame" />
+        <section v-if="joined && state.phase === 'waiting'" class="player-controls">
+          <JoinPanel v-model="joinState" profile-edit @submit="updatePlayer" />
+          <button v-if="!isGameMaster" @click="exitGame">退出</button>
+          <div v-if="isGameMaster">
+            <button v-for="player in state.players.filter(p => !p.npc && !p.gameMaster)" :key="player.id" @click="kickPlayer(player.id)">
+              {{ player.name }}をキック
+            </button>
+          </div>
+        </section>
+        <p v-if="privateState.pendingAction" class="action-warning">時間内に行動しないと突然死します。</p>
         <talk-panel
           v-if="joined"
           :can-chat="canChat"
@@ -570,5 +585,10 @@ div.bar{
 
 .status-row strong{
   font-size: 180%;
+}
+
+.action-warning {
+  color: #b00020;
+  font-weight: bold;
 }
 </style>

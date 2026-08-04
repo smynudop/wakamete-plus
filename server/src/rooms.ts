@@ -47,6 +47,29 @@ export class RoomManager {
     return { roomId: payload.roomId, room, bundle };
   }
 
+  watch(socketId: string, roomId: string): ManagedRoomResult {
+    this.requireNoRoom(socketId);
+    const room = this.requireRoom(roomId);
+    this.socketRooms.set(socketId, roomId);
+    return {
+      roomId,
+      room,
+      bundle: {
+        state: room.getState(),
+        privateStates: new Map([[socketId, room.getPrivateState(socketId)]]),
+        chats: [], events: [], ended: null, phaseChanged: false
+      }
+    };
+  }
+
+  joinWatched(socketId: string, player: JoinRoomPayload["player"]): ManagedRoomResult {
+    const roomId = this.socketRooms.get(socketId);
+    if (!roomId) throw new Error("先にルームを観戦してください。");
+    const room = this.requireRoom(roomId);
+    const bundle = room.join(socketId, player);
+    return { roomId, room, bundle };
+  }
+
   leave(socketId: string): ManagedRoomResult | null {
     const roomId = this.socketRooms.get(socketId);
     if (!roomId) {

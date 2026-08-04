@@ -1,11 +1,12 @@
 <script lang="ts" setup>
+import { watch } from "vue";
 import type { ChatSize } from "@wakamete-plus/shared";
 
 type ChatChannelOption = {
     value: string
     label: string
 }
-defineProps<{
+const props = defineProps<{
     canChat: boolean
     chatChannelOptions: ChatChannelOption[]
 }>()
@@ -20,6 +21,10 @@ function sendChat()
 const chatChannel = defineModel<string>("chatChannel", {required: true})
 const chatText = defineModel<string>("chatText", {required: true})
 const chatSize = defineModel<ChatSize>("chatSize", {required: true})
+
+watch(() => [props.chatChannelOptions.map((option) => option.value).join("|"), props.canChat], () => {
+    chatChannel.value = props.chatChannelOptions[0]?.value ?? "public"
+}, { immediate: true })
 
 function toggleSize(size: Exclude<ChatSize, "normal">) {
     chatSize.value = chatSize.value === size ? "normal" : size

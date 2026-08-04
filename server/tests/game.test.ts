@@ -108,6 +108,25 @@ describe("GameRoom", () => {
     expect(room.start("s1").state.phase).toBe("nightDiscussion");
   });
 
+  it("allows pre-game profile edits, exits, and game-master kicks", () => {
+    const room = new GameRoom();
+    room.create("gm", { name: "owner" });
+    room.join("guest", { name: "guest" });
+    room.join("other", { name: "other" });
+
+    room.updatePlayer("guest", { name: "renamed", color: "#2f80c7" });
+    expect(room.getState().players).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "renamed", color: "#2f80c7" })
+    ]));
+    expect(() => room.exit("gm")).toThrow("ゲームマスターは退出できません。");
+    room.exit("guest");
+    expect(room.getPrivateState("guest").playerId).toBeNull();
+
+    const otherId = room.getPrivateState("other").playerId!;
+    room.kick("gm", otherId);
+    expect(room.getPrivateState("other").playerId).toBeNull();
+  });
+
   it("restores the same player and private state with a session token after the game starts", () => {
     const room = new GameRoom(() => 1_000, DEFAULT_ROOM_SETTINGS, () => "session-player1");
     const joined = room.create("s1", { name: "player1", password: "return-secret" });
@@ -231,6 +250,37 @@ describe("GameRoom", () => {
     expect(player && "password" in player).toBe(false);
     expect(player && "sessionToken" in player).toBe(false);
     expect(bundle.privateStates.get("s1")?.sessionToken).toBeTruthy();
+  });
+
+  it("marks required timed actions as pending", () => {
+    const { room, startBundle } = createStartedRoom();
+    room.advanceTimer();
+    const seerSocket = socketForRole(startBundle, "seer");
+    const werewolfSocket = socketForRole(startBundle, "werewolf");
+
+    expect(room.getPrivateState(seerSocket).pendingAction).toBe(true);
+    expect(room.getPrivateState(werewolfSocket).pendingAction).toBe(true);
+    const firstVictim = room.getState().players.find((player) => player.name === FIRST_VICTIM_NAME)!;
+    room.attack(werewolfSocket, firstVictim.id);
+    expect(room.getPrivateState(werewolfSocket).pendingAction).toBe(false);
+  });
+
+  it("suddenly kills players who miss a timed night action", () => {
+    const game = createStartedRoom();
+    game.room.advanceTimer();
+    const seerId = playerIdForSocket(game.startBundle, socketForRole(game.startBundle, "seer"));
+    game.now = game.room.getState().timer!.endsAt;
+
+    const result = game.room.advanceTimer();
+    expect(result.state.players.find((player) => player.id === seerId)?.alive).toBe(false);
+    expect(result.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entry: expect.objectContaining({
+          kind: "event",
+          detail: expect.objectContaining({ type: "death", reason: "sudden-death" })
+        })
+      })
+    ]));
   });
 
   it("allows public chat before play and the appropriate private channels at night", () => {

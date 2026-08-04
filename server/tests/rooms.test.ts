@@ -87,6 +87,19 @@ describe("RoomManager", () => {
     })).toThrow("別のルームから退出してから操作してください。");
   });
 
+  it("lets spectators watch without occupying a player slot and join later", () => {
+    const manager = new RoomManager(() => "room-a");
+    manager.create("creator", roomPayload("テスト村", "owner"));
+    const watched = manager.watch("spectator", "room-a");
+
+    expect(watched.bundle.privateStates.get("spectator")?.playerId).toBeNull();
+    expect(watched.bundle.state.players.some((player) => player.name === "spectator")).toBe(false);
+
+    const joined = manager.joinWatched("spectator", { name: "spectator" });
+    expect(joined.bundle.privateStates.get("spectator")?.playerId).not.toBeNull();
+    expect(joined.bundle.state.players.some((player) => player.name === "spectator")).toBe(true);
+  });
+
   it("scopes reconnect session tokens to their original room", () => {
     const ids = ["room-a", "room-b"];
     const tokens = ["token-a", "token-b"];
