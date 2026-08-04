@@ -58,14 +58,14 @@ const emit = defineEmits<{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   align-items: end;
-  gap: 0.8rem;
+  gap: .5em;
   margin: 0 auto 1rem;
 }
 
 .join-panel > label,
 fieldset {
   display: grid;
-  gap: 0.4rem;
+  gap: 2px;
   color: #5f6870;
 }
 

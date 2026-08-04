@@ -235,4 +235,12 @@ function createRoom() {
   text-align: center;
 }
 
+@media (max-width: 767px)
+{
+  .lobby-grid{
+    display: block;
+    grid-template-columns: 200px 1fr;
+    height: 100%;
+  }
+}
 </style>

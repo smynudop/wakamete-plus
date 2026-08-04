@@ -37,7 +37,7 @@ const props = defineProps<{
 .players {
 
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 2px;
   margin: 0;
   padding: 0;

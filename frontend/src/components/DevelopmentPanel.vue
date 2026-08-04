@@ -125,4 +125,10 @@ p {
 select{
   width: 60%;
 }
+
+@media (max-width: 767px){
+  .development-panel{
+    display:none;
+  }
+}
 </style>

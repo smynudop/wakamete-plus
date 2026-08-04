@@ -35,4 +35,7 @@ const model = defineModel<string>({required: true})
 select{
     width: 400px;
 }
+button{
+    min-width: 4em;
+}
 </style>

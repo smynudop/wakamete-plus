@@ -509,6 +509,7 @@ watch(
 
 <style scoped>
 h1{
+  font-size: 125%;
   margin: 0;
 }
 
@@ -534,7 +535,7 @@ main.app-shell{
   padding: 4px;
   width: min(900px, 100%);
   /* margin: 0 auto; */
-  margin-left: .5rem;;
+  /* margin-left: .5rem; */
 }
 
 div.bar{
@@ -560,10 +561,16 @@ div.bar{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 4px;
 }
 .top-bar p.pr {
   color: #5f6870;
+  font-size: 90%;
+}
+.top-bar .room-setting{
+  white-space: nowrap;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
 }
 .top-bar .room-setting > * {
   vertical-align: baseline;
@@ -584,11 +591,28 @@ div.bar{
 }
 
 .status-row strong{
-  font-size: 180%;
+  font-size: 150%;
 }
 
 .action-warning {
   color: #b00020;
   font-weight: bold;
+}
+
+@media (max-width: 767px){
+  .game-container{
+    font-size: 10pt;
+  }
+  .top-bar{
+    display: block;
+  }
+  .status-row{
+    display: flex;
+    align-items: center;
+    gap: .5em;
+  }
+  .status-row > * {
+    vertical-align: bottom;
+  }
 }
 </style>

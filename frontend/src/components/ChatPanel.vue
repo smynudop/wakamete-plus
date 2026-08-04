@@ -21,8 +21,12 @@ const formatDate = (dt: number) => {
         :class="entry.kind === 'chat' ? ['message', entry.channel] : ['event-entry', entry.detail.type]"
         >
         <template v-if="entry.kind === 'chat'">
-            <span ><span :style="{ color: entry.senderColor }">◆</span><strong>{{ entry.senderName }}</strong>さん</span>
-            <span class="chat-text" :class="`chat-size-${entry.size}`">「{{entry.text}}」</span>
+            <div class="chat-sender" :style="{ '--accent-color': entry.senderColor }">
+                <span class="mark">◆</span>
+                <span class="cn">{{ entry.senderName }}</span>
+                <span>さん</span>
+            </div>
+            <div class="chat-text" :class="`chat-size-${entry.size}`">「{{entry.text}}」</div>
         </template>
         <template v-else>
             <template v-if="entry.detail.type == 'join'">
@@ -79,10 +83,9 @@ const formatDate = (dt: number) => {
 
 .messages p {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 11em 1fr;
   gap: 4px;
-  margin-bottom: 4px;
-  line-height: 1.45;
+  line-height: 1.6;
 }
 
 .messages p.vote  {
@@ -90,6 +93,13 @@ const formatDate = (dt: number) => {
   color: rgb(25, 31, 63);
   background-color: #dee1e7;
   line-height: 1.5;
+}
+
+.chat-sender .cn{
+    font-weight: bold;
+}
+.mark{
+    color: var(--accent-color);
 }
 
 .messages p.werewolf .chat-text {
@@ -100,9 +110,12 @@ const formatDate = (dt: number) => {
   color: #95ceab;
 }
 
-.messages p.dead .chat-text {
+.messages p.dead  {
     background-color: gray;
-  color: #b5a6c9;
+    color: #f3f3f3;
+}
+.messages p.dead .cn {
+    color: white
 }
 
 .messages p.monologue .chat-text {
@@ -142,5 +155,24 @@ const formatDate = (dt: number) => {
     padding-left: .25em;
 }
 
-
+@media(max-width: 767px){
+    .messages p {
+        grid-template-columns: 7em 1fr;
+        margin-bottom: 2px;
+    }
+    .chat-sender{
+        white-space: nowrap;
+        overflow-x: hidden;
+        font-size: 90%;
+    }
+    .mark{
+        display:none;
+    }
+    .cn{
+        border-bottom: 1px var(--accent-color) solid;
+        padding-left: 2px;
+    }
+    .chat-text{
+    }
+}
 </style>
