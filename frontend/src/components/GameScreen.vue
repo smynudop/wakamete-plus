@@ -24,6 +24,7 @@ import TalkPanel from "./TalkPanel.vue";
 import PlayerPanel from "./PlayerPanel.vue";
 import ChatPanel from "./ChatPanel.vue";
 import RoleBoxPanel from "./RoleBoxPanel.vue";
+import GameManagePanel from "./GameManagePanel.vue";
 
 import type { JoinState } from "./JoinPanel.vue";
 import RoomSettingPanel from "./RoomSettingPanel.vue";
@@ -412,16 +413,12 @@ watch(
     <aside class="command-panel">
 
       <div class="actions">
-        <section v-if="isGameMaster && state.phase==='waiting'" class="start-panel">
-          <button :disabled="!state.canStart" @click="startGame">開始</button>
-          <button
-            v-if="state.phase === 'waiting'"
-            :disabled="state.players.length >= state.room.playerLimit"
-            @click="addBot"
-          >
-            Botを追加
-          </button>
-        </section>
+        <GameManagePanel 
+          v-if="isGameMaster && state.phase==='waiting'" 
+          :state="state"
+          @start="startGame"
+          @add-bot="addBot"
+          @kick="kickPlayer"/>
         <room-setting-panel
           v-if="isGameMaster && state.phase === 'waiting'"
           v-model="roomSettings"
@@ -430,11 +427,6 @@ watch(
         <section v-if="joined && state.phase === 'waiting'" class="player-controls">
           <JoinPanel v-model="joinState" profile-edit @submit="updatePlayer" />
           <button v-if="!isGameMaster" @click="exitGame">退出</button>
-          <div v-if="isGameMaster">
-            <button v-for="player in state.players.filter(p => !p.npc && !p.gameMaster)" :key="player.id" @click="kickPlayer(player.id)">
-              {{ player.name }}をキック
-            </button>
-          </div>
         </section>
         <p v-if="privateState.pendingAction" class="action-warning">時間内に行動しないと突然死します。</p>
         <talk-panel
@@ -552,8 +544,9 @@ div.bar{
 }
 
 
-.actions {
-  /* display: grid; */
+
+.actions > * {
+  margin-bottom: .25em;
 }
 
 .top-bar{

@@ -49,6 +49,7 @@ function toggleSize(size: Exclude<ChatSize, "normal">) {
                 maxlength="160"
                 rows="3"
                 @keydown.ctrl.enter.prevent="sendChat"
+                placeholder="Ctrl+Enterで送信"
             ></textarea>
             <div class="size-buttons">
                 <button

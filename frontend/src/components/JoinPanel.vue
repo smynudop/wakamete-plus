@@ -17,6 +17,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
+  <details :open="!profileEdit">
+  <summary>{{profileEdit ? "プロフィール設定" : "参加登録"}}</summary>
   <form class="join-panel" @submit.prevent="emit('submit')">
     <label>
       プレイヤー名
@@ -51,9 +53,21 @@ const emit = defineEmits<{
     </label>
     <button type="submit">{{ profileEdit ? "変更" : "参加" }}</button>
   </form>
+  </details>
 </template>
 
 <style scoped>
+
+details{
+  border: 1px solid #beb9b9;
+  border-radius: 4px;
+  padding: .25em .5em;
+  background-color: rgba(217, 249, 255, 0.5);
+}
+summary{
+  cursor: pointer;
+  user-select: none;
+}
 .join-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;

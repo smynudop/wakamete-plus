@@ -15,10 +15,11 @@ const props = defineProps<{
         :key="player.id" 
         :class="{ dead: !player.alive, disconnected: !player.connected, 'game-master': player.gameMaster }" 
         class="player">
-        <div class="icon" :style="{ backgroundColor: player.color }">
-        <img :src="player.alive ? `/alive1.gif` : `/grave.gif`" />
+        <div class="icon" :style="{ backgroundColor: player.alive ? player.color : 'transparent' }">
+          <img :src="player.alive ? `/alive1.gif` : `/grave.gif`" />
         </div>
-        <div>
+        <div class="info">
+          <div class="mark" :style="{ color: player.color }">◆</div>
             <div>{{ player.name }}</div>
             <div v-if="player.handleName">HN: {{ player.handleName }}</div>
             <div v-if="player.role">[<span :class="player.role">{{ roleLabels[player.role] }}</span>]</div>
@@ -65,6 +66,10 @@ const props = defineProps<{
   align-items: center;
 }
 
+.players li.dead .icon{
+  border-color: transparent;
+}
+
 .players li img{
   display: block;
   padding: 2px;
@@ -73,20 +78,8 @@ const props = defineProps<{
 }
 
 .players li.dead {
-  filter: grayscale(100%);
-}
+  /* filter: grayscale(100%); */
 
-
-
-.game-master::after{
-content: "GM";
-color: white;
-background-color: rgb(224, 65, 37);
-border-radius: 2px;
-position: absolute;
-right: 0;
-top: 0;
-padding: 2px;
 }
 
 .werewolf{
@@ -104,5 +97,30 @@ padding: 2px;
 }
 .fox{
   color: #ffcc33;
+}
+@media (min-width: 768px){
+  div.mark{
+    display: none;
+  }
+}
+@media (max-width: 767px){
+  .players{
+    /* gap: 0; */
+    gap: 2px 6px;;
+  }
+  .players li{
+    border-right: 1px solid #aaa;
+    border-bottom: 1px solid #aaa;
+  }
+
+  .players li.dead{
+    background-color: #ccc;
+  }
+  .players li div.icon{
+    display: none;
+  }
+  div.info{
+    display: flex;
+  }
 }
 </style>

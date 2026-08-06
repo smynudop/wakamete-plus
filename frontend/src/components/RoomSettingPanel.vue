@@ -5,18 +5,15 @@ const emits = defineEmits<{
     (e: "submit"): void
 }>()
 const roomSettings = defineModel<RoomSettings>({required: true})
-const show = ref(false)
-const toggle = () => show.value = !show.value
 const submit = () => {
-    show.value = false
     emits("submit")
 }
 </script>
 
 <template>
-    <div>
-    <button type="button" @click="toggle">村の設定を変更</button>
-    <form @submit.prevent="submit" class="settings-panel" v-if="show" >
+    <details>
+    <summary>村の設定を変更</summary>
+    <form @submit.prevent="submit" class="settings-panel" >
         <label style="flex: 100%;">
         村名
         <input v-model="roomSettings.roomName" type="text" maxlength="80" />
@@ -49,24 +46,26 @@ const submit = () => {
         <label style="flex: 10%; flex-grow: 1;"></label>
 
         <button>設定を保存</button>
-                <button type="button" @click="show = false">キャンセル</button>
     </form>
-    </div>
+    </details>
 </template> 
 
 <style scoped>
-div{
-  margin: .5em 0;
+details{
+  border: 1px solid #beb9b9;
+  border-radius: 4px;
+  padding: .25em .5em;
+  background-color: rgba(217, 249, 255, 0.5);
+}
+summary{
+  cursor: pointer;
+  user-select: none;
 }
 
 .settings-panel {
   display: flex;
   flex-wrap: wrap;
   gap: .25em;
-  border: 1px solid #666;
-  padding: .5em;
-  border-radius: .25em;
-  margin-top: .5em;
 }
 
 
