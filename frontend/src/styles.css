@@ -81,14 +81,11 @@ p {
 
 .page-shell {
   width: 100%;
-  margin: 0 auto;
-  padding: 1rem;
-}
+  max-width: 800px;
+  background-color: #ffffee;
 
-.eyebrow {
-  color: #746658;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  margin: 1em;
+  padding: 1rem;
 }
 
 .primary-link {
@@ -101,7 +98,9 @@ p {
   text-decoration: none;
 }
 
-
+h1{
+  margin: .5rem 0 1rem;
+}
 
 
 @media (max-width: 48rem) {

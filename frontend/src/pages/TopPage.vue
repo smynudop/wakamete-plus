@@ -20,8 +20,5 @@ import { RouterLink } from "vue-router";
 </template>
 
 <style scoped>
-h1{
-  margin: 2rem 0;
-}
 </style>
 

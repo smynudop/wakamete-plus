@@ -12,11 +12,12 @@ const hideHeader = ref(false)
       <RouterLink to="/">トップ</RouterLink>
       <RouterLink to="/lobby">ログイン/村民登録</RouterLink>
       <RouterLink to="/role-sets">配役表</RouterLink>
+      <RouterLink to="/rules">ルール</RouterLink>
       <RouterLink to="/logs">過去ログ</RouterLink>
     </nav>
     <button type="button" class="toggle-button" @click="hideHeader = !hideHeader">{{hideHeader ? "▼" : "▲"}}</button>
   </aside>
-  <main class="site-main">
+  <main class="site-main wakamete-back">
     <RouterView />
   </main>
   </div>
@@ -67,8 +68,13 @@ const hideHeader = ref(false)
   font-size: 110%;
 }
 
+.site-main{
+  height: 100%;
+  overflow-y: auto;
+}
+
 @media (min-width: 768px){
-  main{
+  .site-main{
   height: 100%;
   overflow-y: auto;
   }

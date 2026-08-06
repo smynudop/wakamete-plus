@@ -146,10 +146,7 @@ function createRoom() {
 
 <style scoped>
 .lobby-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
-  gap: 2rem;
-  align-items: start;
+  display: blockl
 }
 
 .room-list {
@@ -211,6 +208,10 @@ function createRoom() {
   top: 1rem;
 }
 
+h2{
+  margin: .5rem 0;
+}
+
 .create-room-panel label {
   display: grid;
   gap: 0.35rem;
@@ -237,10 +238,5 @@ function createRoom() {
 
 @media (max-width: 767px)
 {
-  .lobby-grid{
-    display: block;
-    grid-template-columns: 200px 1fr;
-    height: 100%;
-  }
 }
 </style>
